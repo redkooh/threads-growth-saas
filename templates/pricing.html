@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pricing — Threads Growth</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0f0f13;color:#e0e0e0;min-height:100vh}
+body::before{content:'';position:fixed;top:-50%;left:-50%;width:200%;height:200%;background:radial-gradient(circle at 50% 20%, rgba(168,85,247,0.06) 0%, transparent 50%),radial-gradient(circle at 80% 80%, rgba(236,72,153,0.04) 0%, transparent 50%);z-index:-1}
+
+/*── Nav ──*/
+nav{padding:18px 32px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #2a2a3a;background:rgba(15,15,19,0.9);backdrop-filter:blur(8px)}
+nav .logo{font-size:18px;font-weight:700;background:linear-gradient(135deg,#a855f7,#ec4899);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+nav .nav-links{display:flex;gap:24px}
+nav .nav-links a{color:#888;text-decoration:none;font-size:14px;transition:color 0.2s}
+nav .nav-links a:hover{color:#e0e0e0}
+nav .nav-links .btn-nav{padding:8px 18px;border-radius:8px;background:linear-gradient(135deg,#a855f7,#ec4899);color:white;font-weight:500}
+nav .nav-links .btn-nav:hover{opacity:0.9;color:white}
+
+/*── Hero ──*/
+.hero{text-align:center;padding:60px 20px 20px}
+.hero h1{font-size:40px;font-weight:800;margin-bottom:8px}
+.hero .sub{color:#888;font-size:16px;max-width:500px;margin:0 auto 24px}
+
+/*── Toggle ──*/
+.toggle-wrap{display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:40px}
+.toggle-wrap span{font-size:14px;color:#888;transition:color 0.2s}
+.toggle-wrap span.active{color:#e0e0e0;font-weight:500}
+.toggle-switch{width:48px;height:26px;border-radius:13px;background:#2a2a3a;cursor:pointer;position:relative;transition:background 0.2s;border:none;padding:0}
+.toggle-switch.on{background:linear-gradient(135deg,#a855f7,#ec4899)}
+.toggle-switch::after{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:white;transition:transform 0.2s}
+.toggle-switch.on::after{transform:translateX(22px)}
+.savings-badge{display:inline-block;padding:3px 10px;border-radius:12px;background:rgba(34,197,94,0.15);color:#22c55e;font-size:11px;font-weight:600;margin-left:6px}
+
+/*── Plans ──*/
+.plans{display:flex;gap:20px;justify-content:center;flex-wrap:wrap;padding:0 20px 60px;max-width:960px;margin:0 auto}
+.plan{background:#1a1a24;border:1px solid #2a2a3a;border-radius:20px;padding:36px 28px;width:290px;transition:all 0.3s;position:relative;display:flex;flex-direction:column}
+.plan:hover{transform:translateY(-4px);border-color:#3a3a4a;box-shadow:0 12px 40px rgba(0,0,0,0.4)}
+.plan.featured{border-color:#a855f7;transform:scale(1.03)}
+.plan.featured:hover{transform:scale(1.03) translateY(-4px)}
+.plan.featured .badge{position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#a855f7,#ec4899);padding:4px 18px;border-radius:20px;font-size:12px;font-weight:600;color:white;white-space:nowrap}
+.plan h3{font-size:18px;margin-bottom:4px}
+.plan .price-row{display:flex;align-items:baseline;gap:4px;margin-bottom:4px}
+.plan .price{font-size:36px;font-weight:800}
+.plan .period{color:#888;font-size:14px}
+.plan .orig-price{color:#555;font-size:13px;text-decoration:line-through;margin-left:4px}
+.plan .desc{color:#888;font-size:13px;margin-bottom:20px}
+.plan .features{list-style:none;margin-bottom:24px;flex:1}
+.plan .features li{padding:8px 0;font-size:14px;color:#aaa;border-bottom:1px solid #1f1f2a;display:flex;align-items:center;gap:8px}
+.plan .features li:last-child{border-bottom:none}
+.plan .features li .check{color:#22c55e;font-weight:700;flex-shrink:0}
+.plan .features li .cross{color:#555;flex-shrink:0}
+.plan .cta{display:block;text-align:center;padding:12px;border-radius:10px;background:linear-gradient(135deg,#a855f7,#ec4899);color:white;text-decoration:none;font-weight:600;transition:all 0.2s}
+.plan .cta:hover{opacity:0.9;transform:translateY(-1px)}
+.plan .cta-outline{background:transparent;border:1px solid #2a2a3a;color:#a855f7;margin-top:8px}
+.plan .cta-outline:hover{background:rgba(168,85,247,0.1)}
+
+/*── FAQ ──*/
+.faq{max-width:640px;margin:0 auto 60px;padding:0 20px}
+.faq h2{text-align:center;font-size:24px;margin-bottom:24px}
+.faq-item{padding:16px 0;border-bottom:1px solid #1f1f2a}
+.faq-q{font-size:14px;font-weight:500;cursor:pointer;display:flex;justify-content:space-between;align-items:center}
+.faq-q:hover{color:#a855f7}
+.faq-a{padding-top:8px;font-size:13px;color:#888;display:none;line-height:1.5}
+.faq-item.open .faq-a{display:block}
+.faq-arrow{font-size:12px;transition:transform 0.2s}
+.faq-item.open .faq-arrow{transform:rotate(180deg)}
+
+@media(max-width:768px){
+  .hero h1{font-size:28px}
+  .plan.featured{transform:none}
+  .plan.featured:hover{transform:translateY(-4px)}
+  .plans{gap:16px}
+}
+</style>
+</head>
+<body>
+<nav>
+  <div class="logo">Threads Growth</div>
+  <div class="nav-links">
+    <a href="/login">Sign In</a>
+    <a href="/signup" class="btn-nav">Get Started</a>
+  </div>
+</nav>
+
+<div class="hero">
+  <h1>Simple, transparent pricing</h1>
+  <p class="sub">Grow your Threads audience on autopilot. No hidden fees, cancel anytime.</p>
+  <div class="toggle-wrap">
+    <span class="active" id="monthlyLabel">Monthly</span>
+    <button class="toggle-switch" id="billingToggle" onclick="toggleBilling()"></button>
+    <span id="annualLabel">Annual <span class="savings-badge">Save 20%</span></span>
+  </div>
+</div>
+
+<div class="plans" id="plansContainer">
+  <div class="plan" data-monthly="19" data-annual="182">
+    <h3>Starter</h3>
+    <div class="price-row">
+      <span class="price" id="price-starter">$19</span>
+      <span class="period">/month</span>
+    </div>
+    <div class="desc">Perfect for getting started with one account</div>
+    <ul class="features">
+      <li><span class="check">✓</span> <b>1</b> Threads account</li>
+      <li><span class="check">✓</span> <b>60</b> daily actions</li>
+      <li><span class="check">✓</span> <b>6</b> automated posting slots</li>
+      <li><span class="check">✓</span> AI content generation</li>
+      <li><span class="check">✓</span> Engagement targeting</li>
+      <li><span class="check">✓</span> Analytics dashboard</li>
+      <li><span class="cross">✗</span> Dedicated proxy</li>
+      <li><span class="cross">✗</span> Priority support</li>
+    </ul>
+    <a href="/signup" class="cta">Get Started</a>
+  </div>
+
+  <div class="plan featured" data-monthly="49" data-annual="468">
+    <div class="badge">Most Popular</div>
+    <h3>Growth</h3>
+    <div class="price-row">
+      <span class="price" id="price-growth">$49</span>
+      <span class="period">/month</span>
+    </div>
+    <div class="desc">For creators ready to scale their presence</div>
+    <ul class="features">
+      <li><span class="check">✓</span> <b>3</b> Threads accounts</li>
+      <li><span class="check">✓</span> <b>150</b> daily actions</li>
+      <li><span class="check">✓</span> <b>8</b> automated posting slots</li>
+      <li><span class="check">✓</span> AI content generation</li>
+      <li><span class="check">✓</span> Advanced targeting</li>
+      <li><span class="check">✓</span> Full analytics &amp; insights</li>
+      <li><span class="check">✓</span> Dedicated US proxy</li>
+      <li><span class="cross">✗</span> Priority support</li>
+    </ul>
+    <a href="/signup" class="cta">Get Started</a>
+  </div>
+
+  <div class="plan" data-monthly="149" data-annual="1428">
+    <h3>Agency</h3>
+    <div class="price-row">
+      <span class="price" id="price-agency">$149</span>
+      <span class="period">/month</span>
+    </div>
+    <div class="desc">For teams managing multiple brands</div>
+    <ul class="features">
+      <li><span class="check">✓</span> <b>10</b> Threads accounts</li>
+      <li><span class="check">✓</span> <b>500</b> daily actions</li>
+      <li><span class="check">✓</span> <b>12</b> custom posting slots</li>
+      <li><span class="check">✓</span> AI content generation</li>
+      <li><span class="check">✓</span> White-label option</li>
+      <li><span class="check">✓</span> Full analytics &amp; exports</li>
+      <li><span class="check">✓</span> Dedicated + backup proxy</li>
+      <li><span class="check">✓</span> Priority support</li>
+    </ul>
+    <a href="/signup" class="cta">Get Started</a>
+  </div>
+</div>
+
+<div class="faq">
+  <h2>Frequently Asked Questions</h2>
+  <div class="faq-item" onclick="toggleFaq(this)">
+    <div class="faq-q">Can I cancel anytime? <span class="faq-arrow">▼</span></div>
+    <div class="faq-a">Yes — no lock-in contracts. Your account stays active until the end of your billing period.</div>
+  </div>
+  <div class="faq-item" onclick="toggleFaq(this)">
+    <div class="faq-q">What does "daily actions" mean? <span class="faq-arrow">▼</span></div>
+    <div class="faq-a">Each post, reply, like, follow, or repost counts as one action. Threads take 3 actions (each part of a thread counts separately).</div>
+  </div>
+  <div class="faq-item" onclick="toggleFaq(this)">
+    <div class="faq-q">Can I switch plans later? <span class="faq-arrow">▼</span></div>
+    <div class="faq-a">Absolutely — upgrade or downgrade anytime. Changes apply immediately with prorated billing.</div>
+  </div>
+</div>
+
+<script>
+let isAnnual = false;
+function toggleBilling(){
+  isAnnual = !isAnnual;
+  const t = document.getElementById('billingToggle');
+  t.classList.toggle('on');
+  document.getElementById('monthlyLabel').classList.toggle('active', !isAnnual);
+  document.getElementById('annualLabel').classList.toggle('active', isAnnual);
+  document.querySelectorAll('.plan').forEach(p => {
+    const monthly = parseInt(p.dataset.monthly);
+    const annual = parseInt(p.dataset.annual);
+    const priceEl = p.querySelector('.price');
+    const period = p.querySelector('.period');
+    if(isAnnual){
+      priceEl.textContent = '$' + Math.round(annual / 12);
+      period.textContent = '/mo billed annually';
+    } else {
+      priceEl.textContent = '$' + monthly;
+      period.textContent = '/month';
+    }
+  });
+}
+function toggleFaq(el){el.classList.toggle('open')}
+</script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+saas.db
+__pycache__/
+*.pyc
+.env
+cookies*.json
+meta*.json

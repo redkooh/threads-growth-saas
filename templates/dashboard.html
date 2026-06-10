@@ -1,0 +1,1529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard — Threads Growth</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0f0f13;color:#e0e0e0;min-height:100vh}
+
+/*── Nav ──*/
+nav{padding:14px 32px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #2a2a3a;background:#12121a}
+nav .logo{font-size:18px;font-weight:700;background:linear-gradient(135deg,#a855f7,#ec4899);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+nav .user-info{display:flex;align-items:center;gap:12px}
+nav .user-info span{color:#888;font-size:13px}
+nav .user-info .plan-badge{background:rgba(168,85,247,0.15);padding:2px 10px;border-radius:10px;color:#a855f7;font-size:11px;font-weight:600}
+nav .user-info a{color:#ef4444;text-decoration:none;font-size:13px;transition:opacity 0.2s}
+nav .user-info a:hover{opacity:0.8}
+nav .tz-badge{font-size:11px;color:#555;background:#1a1a24;padding:3px 8px;border-radius:6px;border:1px solid #2a2a3a}
+
+/*── Tabs ──*/
+.tabs{display:flex;gap:0;padding:0 32px;border-bottom:1px solid #2a2a3a;background:#0f0f13}
+.tab-btn{padding:14px 20px;font-size:14px;font-weight:500;color:#888;background:none;border:none;cursor:pointer;border-bottom:2px solid transparent;transition:all 0.2s}
+.tab-btn:hover{color:#e0e0e0}
+.tab-btn.active{color:#a855f7;border-bottom-color:#a855f7}
+.tab-content{display:none;padding:24px 32px}
+.tab-content.active{display:block}
+
+/*── Stats row ──*/
+.stats{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px}
+.stat-card{background:#1a1a24;border:1px solid #2a2a3a;border-radius:12px;padding:18px 22px;flex:1;min-width:140px;transition:border 0.2s}
+.stat-card:hover{border-color:#3a3a4a}
+.stat-card .val{font-size:26px;font-weight:700}
+.stat-card .lbl{font-size:12px;color:#888;margin-top:2px}
+
+/*── Cards ──*/
+.card{background:#1a1a24;border:1px solid #2a2a3a;border-radius:12px;padding:20px;margin-bottom:16px}
+.card h3{font-size:14px;font-weight:600;margin-bottom:14px;color:#ccc;display:flex;align-items:center;justify-content:space-between}
+.card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.card-header h3{margin-bottom:0}
+
+/*── Accounts list ──*/
+.acct-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.acct-card{background:#1a1a24;border:1px solid #2a2a3a;border-radius:12px;padding:16px;cursor:pointer;transition:all 0.2s}
+.acct-card:hover{border-color:#a855f7;transform:translateY(-1px)}
+.acct-card.selected{border-color:#a855f7;box-shadow:0 0 0 1px #a855f7}
+.acct-card .top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
+.acct-card .name{font-weight:600;font-size:14px}
+.acct-card .username{font-size:12px;color:#888}
+.acct-card .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}
+.badge-active{background:rgba(34,197,94,0.2);color:#22c55e}
+.badge-paused{background:rgba(239,68,68,0.2);color:#ef4444}
+.acct-card .metrics{display:flex;gap:16px;margin-top:8px;font-size:12px;color:#888}
+.acct-card .metrics span{display:flex;align-items:center;gap:4px}
+
+/*── Detail panel ──*/
+.detail-panel{background:#1a1a24;border:1px solid #2a2a3a;border-radius:12px;padding:20px;margin-bottom:16px}
+.detail-panel h3{margin-bottom:12px;font-size:14px;color:#ccc}
+.detail-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid #2a2a3a}
+.detail-header .name{font-size:18px;font-weight:700}
+.detail-header .username{font-size:13px;color:#888;margin-top:2px}
+.detail-actions{display:flex;gap:8px}
+.detail-metrics{display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+.detail-metric{text-align:center;padding:12px 16px;background:#12121a;border-radius:8px;flex:1;min-width:80px}
+.detail-metric .val{font-size:20px;font-weight:700}
+.detail-metric .lbl{font-size:11px;color:#888;margin-top:2px}
+
+/*── Schedule visual ──*/
+.sched-grid{display:flex;flex-direction:column;gap:6px}
+.sched-row{display:flex;align-items:center;gap:10px;padding:6px 0}
+.sched-label{width:60px;font-size:12px;color:#888;flex-shrink:0}
+.sched-vis{flex:1;height:22px;background:#12121a;border-radius:6px;position:relative;overflow:hidden}
+.sched-bar{height:100%;border-radius:6px;transition:width 0.4s ease;display:flex;align-items:center;padding-left:8px;font-size:10px;color:rgba(255,255,255,0.7);min-width:4px}
+.sched-bar.on{background:linear-gradient(90deg,#a855f7,#7c3aed)}
+
+/*── Schedule list ──*/
+.sched-item{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid #1f1f2a;font-size:13px}
+.sched-item:last-child{border-bottom:none}
+.sched-item .sched-info{display:flex;align-items:center;gap:10px}
+.sched-item .sched-status{font-size:11px}
+.toggle-btn{padding:4px 14px;border-radius:8px;border:1px solid #2a2a3a;background:transparent;color:#e0e0e0;cursor:pointer;font-size:12px;transition:all 0.2s}
+.toggle-btn:hover{border-color:#a855f7}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;border:none;font-size:13px;font-weight:500;cursor:pointer;transition:all 0.2s}
+.btn-primary{background:linear-gradient(135deg,#a855f7,#ec4899);color:white}
+.btn-primary:hover{opacity:0.9}
+.btn-danger{background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3)}
+.btn-danger:hover{background:rgba(239,68,68,0.25)}
+.btn-sm{padding:5px 12px;font-size:12px}
+.btn-icon{background:none;border:none;color:#888;cursor:pointer;padding:4px;font-size:16px;transition:color 0.2s}
+.btn-icon:hover{color:#ef4444}
+
+/*── Empty states ──*/
+.empty{color:#555;text-align:center;padding:32px 24px;font-size:14px}
+.empty-icon{font-size:32px;margin-bottom:8px}
+.empty-cta{margin-top:12px}
+
+/*── Toast ──*/
+.toast-container{position:fixed;top:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px}
+.toast{padding:12px 20px;border-radius:10px;font-size:14px;color:white;box-shadow:0 8px 24px rgba(0,0,0,0.4);transform:translateX(120%);opacity:0;transition:all 0.3s ease;max-width:360px}
+.toast.show{transform:translateX(0);opacity:1}
+.toast.success{background:#16a34a}
+.toast.error{background:#dc2626}
+.toast.info{background:#2563eb}
+
+/*── Modal ──*/
+.modal-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center}
+.modal-overlay.show{display:flex}
+.modal-box{background:#1a1a24;border-radius:16px;padding:28px 32px;width:460px;border:1px solid #2a2a3a;margin:20px}
+.modal-box h3{font-size:16px;margin-bottom:4px}
+.modal-box p{color:#888;font-size:13px;margin:8px 0 16px}
+.modal-btns{display:flex;gap:8px;justify-content:flex-end}
+.modal-btns .btn-cancel{padding:10px 20px;border-radius:8px;border:1px solid #2a2a3a;background:transparent;color:#888;cursor:pointer;font-size:13px}
+.add-tab-content{padding:4px 0}
+.add-tab{border-bottom:2px solid transparent !important}
+.add-tab.active{color:#a855f7 !important;border-bottom-color:#a855f7 !important}
+
+/*── Loading skeleton ──*/
+.skel{background:linear-gradient(90deg,#1a1a24 25%,#222234 50%,#1a1a24 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;border-radius:6px}
+.skel-line{height:14px;margin-bottom:8px}
+.skel-block{height:60px;margin-bottom:8px;border-radius:8px}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+/*── Settings ──*/
+.settings-row{display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid #1f1f2a}
+.settings-row:last-child{border-bottom:none}
+.settings-row .label{font-size:14px}
+.settings-row .desc{font-size:12px;color:#888;margin-top:2px}
+.settings-row .value{font-size:14px;font-weight:500}
+
+/*── Search bar ──*/
+.search-bar{display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap}
+.search-input{padding:10px 14px;border-radius:8px;border:1px solid #2a2a3a;background:#12121a;color:#e0e0e0;font-size:13px;outline:none;flex:1;min-width:180px;transition:border 0.2s}
+.search-input:focus{border-color:#a855f7}
+.search-input::placeholder{color:#555}
+.filter-chip{padding:6px 14px;border-radius:20px;border:1px solid #2a2a3a;background:transparent;color:#888;font-size:12px;cursor:pointer;transition:all 0.2s}
+.filter-chip:hover{border-color:#3a3a4a}
+.filter-chip.active{background:rgba(168,85,247,0.15);border-color:#a855f7;color:#a855f7}
+
+/*── Tooltip ──*/
+.help-tip{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#2a2a3a;color:#888;font-size:10px;cursor:help;margin-left:4px;position:relative;flex-shrink:0}
+.help-tip:hover{background:#a855f7;color:white}
+.help-tip .tip-text{display:none;position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:#12121a;border:1px solid #2a2a3a;color:#aaa;font-size:11px;padding:8px 12px;border-radius:8px;white-space:nowrap;z-index:100;line-height:1.4;font-weight:400;white-space:normal;width:220px;text-align:center}
+.help-tip:hover .tip-text{display:block}
+.help-tip .tip-text::after{content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);border:5px solid transparent;border-top-color:#2a2a3a}
+
+/*── Onboarding wizard ──*/
+.onboard-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:2000;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+.onboard-overlay.show{display:flex}
+.onboard-box{background:#1a1a24;border-radius:24px;padding:48px 40px;width:520px;max-width:90vw;border:1px solid #2a2a3a;position:relative;text-align:center}
+.onboard-box .step-dots{display:flex;gap:6px;justify-content:center;margin-bottom:24px}
+.onboard-box .step-dot{width:8px;height:8px;border-radius:50%;background:#2a2a3a;transition:all 0.3s}
+.onboard-box .step-dot.active{background:#a855f7;width:24px;border-radius:4px}
+.onboard-box .icon{font-size:48px;margin-bottom:12px}
+.onboard-box h2{font-size:22px;font-weight:700;margin-bottom:6px}
+.onboard-box p{color:#888;font-size:14px;margin-bottom:20px;line-height:1.5}
+.onboard-features{display:flex;gap:10px;margin:16px 0 24px;flex-wrap:wrap;justify-content:center}
+.onboard-feat{background:#12121a;border:1px solid #2a2a3a;border-radius:10px;padding:14px 16px;flex:1;min-width:130px;text-align:center}
+.onboard-feat .feat-icon{font-size:24px;margin-bottom:4px}
+.onboard-feat .feat-label{font-size:12px;color:#888}
+.onboard-feat .feat-val{font-size:13px;font-weight:600;margin-top:2px}
+
+/*── Step-by-step guide ──*/
+.steps{text-align:left;margin:16px 0}
+.step{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid #1f1f2a;align-items:flex-start}
+.step:last-child{border-bottom:none}
+.step-num{width:28px;height:28px;border-radius:50%;background:rgba(168,85,247,0.15);color:#a855f7;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.step-content{font-size:13px;color:#ccc;line-height:1.5}
+.step-content strong{color:#e0e0e0}
+.step-code{background:#12121a;border:1px solid #2a2a3a;border-radius:6px;padding:8px 12px;font-family:monospace;font-size:12px;margin-top:6px;overflow-x:auto;white-space:nowrap;color:#a855f7}
+.browser-tabs{display:flex;gap:4px;margin:8px 0}
+.browser-tab{padding:6px 14px;border-radius:8px 8px 0 0;font-size:12px;cursor:pointer;background:#12121a;color:#888;border:1px solid #2a2a3a;border-bottom:none;transition:all 0.2s}
+.browser-tab.active{background:#1a1a24;color:#a855f7;font-weight:600}
+.browser-panel{display:none;background:#12121a;border:1px solid #2a2a3a;border-radius:0 8px 8px 8px;padding:16px;font-size:13px;color:#ccc;line-height:1.6}
+.browser-panel.active{display:block}
+.browser-panel code{background:#1a1a24;padding:2px 6px;border-radius:4px;font-size:12px;color:#a855f7}
+.browser-panel ol{padding-left:20px}
+.browser-panel li{margin-bottom:8px}
+.browser-panel li:last-child{margin-bottom:0}
+
+/*── Last updated ──*/
+.last-updated{font-size:11px;color:#444;text-align:right;padding:4px 0}
+.last-updated button{background:none;border:none;color:#a855f7;cursor:pointer;font-size:11px;margin-left:4px}
+.last-updated button:hover{text-decoration:underline}
+
+/*── Schedule footer ──*/
+.sched-footer{display:flex;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid #1f1f2a;align-items:center;flex-wrap:wrap}
+.sched-footer input{padding:8px 12px;border-radius:8px;border:1px solid #2a2a3a;background:#12121a;color:#e0e0e0;font-size:12px;outline:none;width:80px}
+.sched-footer input:focus{border-color:#a855f7}
+
+/*── Mini chart bars ──*/
+.chart-bars{display:flex;gap:4px;align-items:flex-end;height:80px;margin-top:8px}
+.chart-bar{flex:1;border-radius:4px 4px 0 0;min-height:6px;background:linear-gradient(180deg,#a855f7,#7c3aed);transition:height 0.3s ease;position:relative}
+.chart-bar .bar-val{position:absolute;top:-16px;left:50%;transform:translateX(-50%);font-size:10px;color:#888;white-space:nowrap}
+.chart-bar .bar-lbl{position:absolute;bottom:-16px;left:50%;transform:translateX(-50%);font-size:9px;color:#555;white-space:nowrap}
+
+/*── Progress bars ──*/
+.progress-row{display:flex;align-items:center;gap:8px;padding:4px 0}
+.progress-label{font-size:12px;color:#888;width:70px;flex-shrink:0}
+.progress-track{flex:1;height:20px;background:#12121a;border-radius:10px;overflow:hidden;position:relative}
+.progress-fill{height:100%;border-radius:10px;transition:width 0.5s ease;min-width:0}
+.progress-fill.green{background:linear-gradient(90deg,#22c55e,#16a34a)}
+.progress-fill.yellow{background:linear-gradient(90deg,#eab308,#ca8a04)}
+.progress-fill.red{background:linear-gradient(90deg,#ef4444,#dc2626)}
+.progress-fill.purple{background:linear-gradient(90deg,#a855f7,#7c3aed)}
+.progress-num{font-size:12px;color:#aaa;width:48px;text-align:right;flex-shrink:0}
+
+/*── Detail tabs ──*/
+.detail-tabs{display:flex;gap:2px;flex-wrap:wrap;margin-bottom:12px;border-bottom:1px solid #2a2a3a;padding-bottom:0}
+.detail-tab{padding:10px 16px;font-size:13px;font-weight:500;color:#888;background:none;border:none;cursor:pointer;border-bottom:2px solid transparent;transition:all 0.2s;border-radius:8px 8px 0 0}
+.detail-tab:hover{color:#e0e0e0;background:#12121a}
+.detail-tab.active{color:#a855f7;border-bottom-color:#a855f7;background:rgba(168,85,247,0.08)}
+.detail-section{display:none}
+.detail-section.active{display:block}
+
+/*── Form groups ──*/
+.form-group{background:#12121a;border:1px solid #2a2a3a;border-radius:10px;padding:14px;margin-bottom:10px}
+.form-group label{display:block;font-size:12px;color:#888;margin-bottom:4px;font-weight:500}
+.form-group .desc{font-size:11px;color:#555;margin-top:2px}
+.form-group select,.form-group input[type="text"],.form-group input[type="number"],.form-group textarea{width:100%;padding:8px 10px;border-radius:6px;border:1px solid #2a2a3a;background:#0f0f13;color:#e0e0e0;font-size:13px;outline:none;transition:border 0.2s}
+.form-group select:focus,.form-group input:focus,.form-group textarea:focus{border-color:#a855f7}
+.form-group textarea{font-family:inherit;resize:vertical;min-height:60px;font-size:13px}
+.form-group .checkbox-group{display:flex;flex-wrap:wrap;gap:6px}
+.form-group .checkbox-group label{display:flex;align-items:center;gap:6px;font-size:13px;color:#ccc;cursor:pointer;background:#12121a;border:1px solid #2a2a3a;border-radius:6px;padding:6px 12px;transition:all 0.2s}
+.form-group .checkbox-group label:hover{border-color:#a855f7}
+.form-row{display:flex;gap:10px}
+.form-row .form-group{flex:1}
+.form-group input[type="checkbox"]{accent-color:#a855f7;width:auto}
+
+/*── Post list ──*/
+.post-item{padding:10px 12px;border-bottom:1px solid #1f1f2a;font-size:13px}
+.post-item:last-child{border-bottom:none}
+.post-item .post-meta{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.post-item .post-type{display:inline-block;padding:1px 7px;border-radius:8px;font-size:11px;font-weight:500}
+.post-type.thread{background:rgba(168,85,247,0.1);color:#a855f7}
+.post-type.fun_fact{background:rgba(59,130,246,0.1);color:#3b82f6}
+.post-type.reply{background:rgba(34,197,94,0.1);color:#22c55e}
+.post-item .post-time{color:#555;font-size:11px}
+.post-item .post-preview{color:#aaa;line-height:1.4;margin-top:2px}
+.post-item .post-stats{display:flex;gap:12px;margin-top:4px;font-size:11px;color:#555}
+
+/*── Update Account Modal ──*/
+.modal-box input,.modal-box textarea,.modal-box select{width:100%;padding:12px;border-radius:8px;border:1px solid #2a2a3a;background:#12121a;color:#e0e0e0;margin-bottom:8px;outline:none;font-size:13px}
+.modal-box input:focus,.modal-box textarea:focus,.modal-box select:focus{border-color:#a855f7}
+.modal-box textarea{font-family:monospace;font-size:12px;resize:vertical}
+.modal-error{color:#ef4444;font-size:13px;margin-top:8px;display:none}
+
+@media(max-width:768px){
+  nav{padding:12px 16px}
+  .tabs{padding:0 16px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .tab-btn{padding:12px 14px;font-size:13px;white-space:nowrap}
+  .tab-content{padding:16px}
+  .stats{gap:8px}
+  .stat-card{padding:14px 16px;min-width:100px}
+  .stat-card .val{font-size:22px}
+  .acct-grid{grid-template-columns:1fr}
+  .detail-metrics{gap:8px}
+  .modal-box{width:auto;margin:16px}
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="logo">Threads Growth</div>
+  <div class="user-info">
+    <span id="userEmail"></span>
+    <span class="plan-badge" id="userPlan"></span>
+    <span class="tz-badge" id="tzBadge"></span>
+    <a href="/logout">Sign Out</a>
+  </div>
+</nav>
+
+<div class="tabs" id="tabBar">
+  <button class="tab-btn active" data-tab="dashboard">📊 Dashboard</button>
+  <button class="tab-btn" data-tab="accounts">👤 Accounts</button>
+  <button class="tab-btn" data-tab="analytics">📈 Analytics</button>
+  <button class="tab-btn" data-tab="settings">⚙️ Settings</button>
+</div>
+
+<!-- ════ TAB: Dashboard ════ -->
+<div class="tab-content active" id="tab-dashboard">
+  <div class="stats" id="statsRow"></div>
+
+  <div class="card" id="dashboardAccountsCard">
+    <h3>Accounts Overview</h3>
+    <div id="dashAccountList"></div>
+  </div>
+
+  <div class="card">
+    <h3>Recent Activity</h3>
+    <div id="dashPostList"></div>
+  </div>
+</div>
+
+<!-- ════ TAB: Accounts ════ -->
+<div class="tab-content" id="tab-accounts">
+  <div style="margin-bottom:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+    <button class="btn btn-primary" onclick="showAddAccount()">+ Add Account</button>
+    <button class="btn btn-sm" style="background:rgba(59,130,246,0.1);color:#3b82f6;border:1px solid rgba(59,130,246,0.3)" onclick="exportCSV()">📥 Export CSV</button>
+    <span style="flex:1"></span>
+    <span class="last-updated" id="lastUpdated">Last updated: — <button onclick="refreshAll()">↻ Refresh</button></span>
+  </div>
+
+  <div class="search-bar">
+    <input class="search-input" id="accountSearch" placeholder="Search accounts by name or username..." oninput="filterAccounts()">
+    <span class="filter-chip active" onclick="toggleFilter(this,'all')" data-filter="all">All</span>
+    <span class="filter-chip" onclick="toggleFilter(this,'active')" data-filter="active">Active</span>
+    <span class="filter-chip" onclick="toggleFilter(this,'paused')" data-filter="paused">Paused</span>
+  </div>
+
+  <div class="acct-grid" id="accountGrid"></div>
+
+  <div id="detailPanel"></div>
+</div>
+
+<!-- ════ TAB: Analytics ════ -->
+<div class="tab-content" id="tab-analytics">
+  <div class="stats" id="analyticsStats"></div>
+
+  <div class="card">
+    <h3>Post Activity (Last 14 Days)</h3>
+    <div id="analyticsChart" style="padding-bottom:20px"></div>
+  </div>
+
+  <div class="card">
+    <h3>Per-Account Performance</h3>
+    <div id="analyticsAccounts"></div>
+  </div>
+</div>
+
+<!-- ════ TAB: Settings ════ -->
+<div class="tab-content" id="tab-settings">
+  <div class="card">
+    <h3>👤 Account</h3>
+    <div class="settings-row">
+      <div><div class="label">Email</div><div class="desc">Your login email</div></div>
+      <div class="value" id="settingsEmail">—</div>
+    </div>
+    <div class="settings-row">
+      <div><div class="label">Plan</div><div class="desc" id="settingsPlanFee">Current tier</div></div>
+      <div class="value" id="settingsPlan" style="background:linear-gradient(135deg,#a855f7,#ec4899);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:700">—</div>
+    </div>
+  </div>
+
+  <div class="card" id="planFeaturesCard">
+    <h3>📋 Plan Features</h3>
+    <div id="planFeatures"></div>
+  </div>
+
+  <div class="card">
+    <h3>💳 Billing</h3>
+    <div id="planUpgradeRow" style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-primary btn-sm" onclick="toast('info','Billing portal coming soon')">Manage Subscription →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════ Onboarding Wizard ════ -->
+<div class="onboard-overlay" id="onboardOverlay">
+  <div class="onboard-box">
+    <div class="step-dots" id="onboardDots">
+      <div class="step-dot active"></div>
+      <div class="step-dot"></div>
+      <div class="step-dot"></div>
+      <div class="step-dot"></div>
+    </div>
+
+    <!-- Step 1: Welcome -->
+    <div class="onboard-step" id="onStep1">
+      <div class="icon">🚀</div>
+      <h2>Welcome to Threads Growth!</h2>
+      <p>We'll automatically post, reply, and engage with your target audience on Threads — so you grow while you sleep.</p>
+      <div class="onboard-features">
+        <div class="onboard-feat"><div class="feat-icon">🧵</div><div class="feat-label">Daily Threads</div><div class="feat-val">AI-written posts</div></div>
+        <div class="onboard-feat"><div class="feat-icon">💬</div><div class="feat-label">Smart Replies</div><div class="feat-val">Engage for you</div></div>
+        <div class="onboard-feat"><div class="feat-icon">📈</div><div class="feat-label">Growth</div><div class="feat-val">More profile visits</div></div>
+      </div>
+      <button class="btn btn-primary" onclick="onboardNext()" style="padding:12px 40px">Get Started →</button>
+    </div>
+
+    <!-- Step 2: What you need -->
+    <div class="onboard-step" id="onStep2" style="display:none">
+      <div class="icon">🔑</div>
+      <h2>What You'll Need</h2>
+      <p>To connect your Threads account, just grab your login cookies from a browser. It takes 30 seconds.</p>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-content">Open <strong>Chrome</strong> or <strong>Edge</strong> on your computer</div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-content">Go to <strong>threads.net</strong> and log in to your account</div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-content">Open the <strong>Developer Tools</strong> (right-click anywhere → <strong>Inspect</strong>)</div>
+        </div>
+        <div class="step">
+          <div class="step-num">4</div>
+          <div class="step-content">Go to the <strong>Console</strong> tab, paste the code below, and press <strong>Enter</strong></div>
+        </div>
+      </div>
+      <div class="step-code" style="cursor:pointer" onclick="copyCookieCode()" title="Click to copy">📋 document.cookie.split('; ').map(c=&gt;{let[a,b]=c.split('=');return{name:a,value:b}})</div>
+      <p style="font-size:12px;color:#555;margin-top:4px">Click the code above to copy it, then paste in your browser Console</p>
+      <div style="display:flex;gap:8px;margin-top:16px">
+        <button class="btn-cancel" onclick="onboardPrev()" style="padding:10px 24px">Back</button>
+        <button class="btn btn-primary" onclick="onboardNext()" style="flex:1">I Got It, Let's Connect →</button>
+      </div>
+    </div>
+
+    <!-- Step 3: Detailed browser guide -->
+    <div class="onboard-step" id="onStep3" style="display:none">
+      <div class="icon">📖</div>
+      <h2>Step-by-Step Guide</h2>
+      <p>Choose your browser below for exact instructions</p>
+      <div class="browser-tabs">
+        <div class="browser-tab active" onclick="switchBrowserTab(this,'chrome')">Chrome</div>
+        <div class="browser-tab" onclick="switchBrowserTab(this,'edge')">Edge</div>
+        <div class="browser-tab" onclick="switchBrowserTab(this,'safari')">Safari</div>
+        <div class="browser-tab" onclick="switchBrowserTab(this,'firefox')">Firefox</div>
+      </div>
+      <div class="browser-panel active" id="browser-chrome">
+        <ol>
+          <li>Go to <strong>threads.net</strong> and make sure you're logged in</li>
+          <li><strong>Right-click</strong> anywhere on the page → click <strong>"Inspect"</strong></li>
+          <li>Click the <strong>"Console"</strong> tab at the top</li>
+          <li>Paste this: <code>document.cookie.split('; ').map(c=&gt;{let[a,b]=c.split('=');return{name:a,value:b}})</code></li>
+          <li>Press <strong>Enter</strong> — you'll see a list of cookies</li>
+          <li><strong>Right-click</strong> the output → <strong>"Copy"</strong> → <strong>"Copy object"</strong></li>
+          <li>Come back here and paste it in the box!</li>
+        </ol>
+      </div>
+      <div class="browser-panel" id="browser-edge">
+        <ol>
+          <li>Go to <strong>threads.net</strong> and log in</li>
+          <li>Press <strong>F12</strong> or right-click → <strong>"Inspect"</strong></li>
+          <li>Click the <strong>"Console"</strong> tab</li>
+          <li>Paste: <code>document.cookie.split('; ').map(c=&gt;{let[a,b]=c.split('=');return{name:a,value:b}})</code></li>
+          <li>Press <strong>Enter</strong></li>
+          <li>Right-click the result → <strong>"Copy object"</strong></li>
+          <li>Paste it here!</li>
+        </ol>
+      </div>
+      <div class="browser-panel" id="browser-safari">
+        <ol>
+          <li>Go to <strong>threads.net</strong> and log in</li>
+          <li>Go to <strong>Safari → Settings → Advanced</strong> and check <strong>"Show Develop menu"</strong></li>
+          <li>Right-click → <strong>"Inspect Element"</strong></li>
+          <li>Click the <strong>"Console"</strong> tab</li>
+          <li>Paste: <code>document.cookie.split('; ').map(c=&gt;{let[a,b]=c.split('=');return{name:a,value:b}})</code></li>
+          <li>Press <strong>Enter</strong> → copy the result</li>
+        </ol>
+      </div>
+      <div class="browser-panel" id="browser-firefox">
+        <ol>
+          <li>Go to <strong>threads.net</strong> and log in</li>
+          <li>Right-click → <strong>"Inspect Element"</strong></li>
+          <li>Click the <strong>"Console"</strong> tab</li>
+          <li>Paste: <code>document.cookie.split('; ').map(c=&gt;{let[a,b]=c.split('=');return{name:a,value:b}})</code></li>
+          <li>Press <strong>Enter</strong></li>
+          <li>Right-click the array → <strong>"Copy Object"</strong></li>
+          <li>Paste it here!</li>
+        </ol>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:16px">
+        <button class="btn-cancel" onclick="onboardPrev()" style="padding:10px 24px">Back</button>
+        <button class="btn btn-primary" onclick="closeOnboard(); showAddAccount()" style="flex:1">Got It, Let's Connect! →</button>
+      </div>
+    </div>
+
+    <!-- Step 4: Schedule info -->
+    <div class="onboard-step" id="onStep4" style="display:none">
+      <div class="icon">⏰</div>
+      <h2>How Scheduling Works</h2>
+      <p>Your accounts run on auto-pilot. Here's what happens every day:</p>
+      <div class="onboard-features">
+        <div class="onboard-feat"><div class="feat-icon">🤖</div><div class="feat-label">AI Writes Posts</div><div class="feat-val">Picks trending topics</div></div>
+        <div class="onboard-feat"><div class="feat-icon">⏲️</div><div class="feat-label">6 Slots Per Day</div><div class="feat-val">Auto-scheduled</div></div>
+        <div class="onboard-feat"><div class="feat-icon">💬</div><div class="feat-label">Auto Replies</div><div class="feat-val">To viral posts</div></div>
+        <div class="onboard-feat"><div class="feat-icon">📊</div><div class="feat-label">Track Growth</div><div class="feat-val">Real-time analytics</div></div>
+      </div>
+      <p style="color:#aaa;font-size:13px">You can customize posting hours and turn slots on/off anytime from the dashboard.</p>
+      <button class="btn btn-primary" onclick="closeOnboard()" style="padding:12px 40px;margin-top:8px">Done! Take Me to Dashboard →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════ Toast Container ════ -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- ════ Delete Confirmation Modal ════ -->
+<div class="modal-overlay" id="deleteModal">
+  <div class="modal-box">
+    <h3>Delete Account?</h3>
+    <p>This will permanently remove the Threads account and all its schedules &amp; post history. <strong>This cannot be undone.</strong></p>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeDeleteModal()">Cancel</button>
+      <button class="btn btn-danger" id="confirmDeleteBtn" onclick="confirmDeleteAccount()">Delete</button>
+    </div>
+    <div class="modal-error" id="deleteError"></div>
+  </div>
+</div>
+
+<!-- ════ Add Account Modal ════ -->
+<div class="modal-overlay" id="addModal">
+  <div class="modal-box">
+    <h3>Connect Your Threads Account</h3>
+    <p>Enter your login details and select your proxy region</p>
+
+    <input id="inputThreadsUser" placeholder="Threads username or email" style="margin-bottom:8px">
+    <input id="inputThreadsPass" type="password" placeholder="Password" style="margin-bottom:12px">
+
+    <label style="font-size:13px;color:#888;display:block;margin-bottom:4px">Proxy Region 🇺🇸</label>
+    <select id="inputCountry">
+      <option value="UnitedStates">🇺🇸 United States</option>
+      <option value="Canada">🇨🇦 Canada</option>
+      <option value="UnitedKingdom">🇬🇧 United Kingdom</option>
+      <option value="Germany">🇩🇪 Germany</option>
+      <option value="France">🇫🇷 France</option>
+      <option value="Australia">🇦🇺 Australia</option>
+      <option value="Netherlands">🇳🇱 Netherlands</option>
+      <option value="Singapore">🇸🇬 Singapore</option>
+      <option value="Japan">🇯🇵 Japan</option>
+      <option value="India">🇮🇳 India</option>
+      <option value="Brazil">🇧🇷 Brazil</option>
+      <option value="Mexico">🇲🇽 Mexico</option>
+      <option value="Argentina">🇦🇷 Argentina</option>
+      <option value="Spain">🇪🇸 Spain</option>
+      <option value="Italy">🇮🇹 Italy</option>
+      <option value="Sweden">🇸🇪 Sweden</option>
+      <option value="Switzerland">🇨🇭 Switzerland</option>
+      <option value="Belgium">🇧🇪 Belgium</option>
+      <option value="Ireland">🇮🇪 Ireland</option>
+      <option value="Norway">🇳🇴 Norway</option>
+      <option value="Denmark">🇩🇰 Denmark</option>
+      <option value="Finland">🇫🇮 Finland</option>
+      <option value="Portugal">🇵🇹 Portugal</option>
+      <option value="Austria">🇦🇹 Austria</option>
+      <option value="Poland">🇵🇱 Poland</option>
+      <option value="Czechia">🇨🇿 Czech Republic</option>
+      <option value="Bulgaria">🇧🇬 Bulgaria</option>
+      <option value="Romania">🇷🇴 Romania</option>
+      <option value="Croatia">🇭🇷 Croatia</option>
+      <option value="Slovakia">🇸🇰 Slovakia</option>
+      <option value="Slovenia">🇸🇮 Slovenia</option>
+      <option value="Lithuania">🇱🇹 Lithuania</option>
+      <option value="Latvia">🇱🇻 Latvia</option>
+      <option value="Estonia">🇪🇪 Estonia</option>
+      <option value="Luxembourg">🇱🇺 Luxembourg</option>
+      <option value="UnitedKingdom-Manchester">🇬🇧 UK - Manchester</option>
+      <option value="UnitedKingdom-London">🇬🇧 UK - London</option>
+      <option value="Australia-Sydney">🇦🇺 Australia - Sydney</option>
+      <option value="Canada-Toronto">🇨🇦 Canada - Toronto</option>
+      <option value="UnitedStates-Dallas">🇺🇸 US - Dallas</option>
+      <option value="UnitedStates-NewYork">🇺🇸 US - New York</option>
+      <option value="UnitedStates-Chicago">🇺🇸 US - Chicago</option>
+      <option value="UnitedStates-Miami">🇺🇸 US - Miami</option>
+      <option value="UnitedStates-LosAngeles">🇺🇸 US - Los Angeles</option>
+      <option value="UnitedStates-Seattle">🇺🇸 US - Seattle</option>
+      <option value="SouthAfrica">🇿🇦 South Africa</option>
+      <option value="Israel">🇮🇱 Israel</option>
+      <option value="Turkey">🇹🇷 Turkey</option>
+      <option value="SouthKorea">🇰🇷 South Korea</option>
+      <option value="Taiwan">🇹🇼 Taiwan</option>
+      <option value="HongKong">🇭🇰 Hong Kong</option>
+      <option value="Malaysia">🇲🇾 Malaysia</option>
+      <option value="Indonesia">🇮🇩 Indonesia</option>
+      <option value="Philippines">🇵🇭 Philippines</option>
+      <option value="Thailand">🇹🇭 Thailand</option>
+      <option value="Vietnam">🇻🇳 Vietnam</option>
+      <option value="Colombia">🇨🇴 Colombia</option>
+      <option value="Chile">🇨🇱 Chile</option>
+      <option value="Peru">🇵🇪 Peru</option>
+      <option value="NewZealand">🇳🇿 New Zealand</option>
+      <option value="UnitedArabEmirates">🇦🇪 UAE</option>
+      <option value="SaudiArabia">🇸🇦 Saudi Arabia</option>
+      <option value="Egypt">🇪🇬 Egypt</option>
+      <option value="Nigeria">🇳🇬 Nigeria</option>
+      <option value="Kenya">🇰🇪 Kenya</option>
+      <option value="Ukraine">🇺🇦 Ukraine</option>
+      <option value="Serbia">🇷🇸 Serbia</option>
+      <option value="Greece">🇬🇷 Greece</option>
+      <option value="Hungary">🇭🇺 Hungary</option>
+      <option value="Cyprus">🇨🇾 Cyprus</option>
+      <option value="Malta">🇲🇹 Malta</option>
+      <option value="Iceland">🇮🇸 Iceland</option>
+    </select>
+    <p style="font-size:11px;color:#555;margin:4px 0 12px">Your Threads traffic will route through this region</p>
+
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-primary" style="flex:1" id="connectBtn" onclick="saveAccount()">Connect Account</button>
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+    </div>
+    <div class="modal-error" id="modalError"></div>
+  </div>
+</div>
+
+<!-- ════ Add Schedule Modal ════ -->
+<div class="modal-overlay" id="schedModal">
+  <div class="modal-box">
+    <h3>Add Posting Slot</h3>
+    <p>Choose an hour (UTC) for the new automated posting slot</p>
+    <input type="number" id="schedHour" min="0" max="23" value="12" placeholder="UTC hour (0-23)">
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-primary" style="flex:1" onclick="saveSchedule()">Add Slot</button>
+      <button class="btn-cancel" onclick="closeSchedModal()">Cancel</button>
+    </div>
+    <div class="modal-error" id="schedError"></div>
+  </div>
+</div>
+
+<script>
+// ── Globals ──
+let accounts = [];
+let selectedAccountId = null;
+let deleteTargetId = null;
+let filterMode = 'all';
+let refreshTimer = null;
+
+// ── Toast ──
+function toast(type, msg) {
+  const c = document.getElementById('toastContainer');
+  const t = document.createElement('div');
+  t.className = 'toast ' + type;
+  t.textContent = msg;
+  c.appendChild(t);
+  requestAnimationFrame(() => t.classList.add('show'));
+  setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300) }, 3500);
+}
+
+// ── API helper ──
+function tip(text) {
+  return `<span class="help-tip">?<span class="tip-text">${text}</span></span>`;
+}
+function toLocalTime(utcHour) {
+  // Convert UTC hour to user's local time
+  const now = new Date();
+  const utcDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), utcHour, 0, 0));
+  const localStr = utcDate.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
+  const offset = -utcDate.getTimezoneOffset();
+  const sign = offset >= 0 ? '+' : '-';
+  const hrs = Math.floor(Math.abs(offset) / 60);
+  return `${localStr} `;
+}
+async function api(path, opts={}) {
+  const r = await fetch(path, {...opts, headers:{'Content-Type':'application/json',...opts.headers}});
+  const data = await r.json();
+  if (!r.ok && !data.ok) throw new Error(data.error || 'Request failed');
+  return data;
+}
+
+// ── Skeleton loaders ──
+function skelLine(n=3) {
+  return Array.from({length:n}, (_,i) => `<div class="skel skel-line" style="width:${60+Math.random()*30}%"></div>`).join('');
+}
+function skelBlock(n=2) {
+  return Array.from({length:n}, () => '<div class="skel skel-block"></div>').join('');
+}
+
+// ── Tab switching ──
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    if (btn.dataset.tab === 'accounts') refreshAccounts();
+    if (btn.dataset.tab === 'analytics') loadAnalytics();
+  });
+});
+
+// ════════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════════
+
+async function loadAll() {
+  try {
+    const me = await api('/api/me');
+    document.getElementById('userEmail').textContent = me.email;
+    document.getElementById('userPlan').textContent = me.plan;
+    document.getElementById('settingsEmail').textContent = me.email;
+    document.getElementById('settingsPlan').textContent = me.plan_config.name;
+    document.getElementById('settingsPlanFee').textContent = me.plan_config.price;
+    document.getElementById('tzBadge').textContent = '🕐 ' + Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+    // Render plan features in Settings
+    const cfg = me.plan_config;
+    const planFeaturesHTML = `
+      <div class="settings-row">
+        <div><div class="label">Accounts</div><div class="desc">Connected Threads accounts</div></div>
+        <div class="value">${stats.accounts} / ${cfg.max_accounts}</div>
+      </div>
+      <div class="settings-row">
+        <div><div class="label">Threads/Day</div><div class="desc">Total daily posts across accounts</div></div>
+        <div class="value">${stats.today_threads} / ${cfg.max_posts_day}</div>
+      </div>
+      <div class="settings-row">
+        <div><div class="label">Smart Replies</div><div class="desc">Auto-reply to trending threads</div></div>
+        <div class="value">${cfg.feature_replies ? '✅' : '❌'}</div>
+      </div>
+      <div class="settings-row">
+        <div><div class="label">Content Styles</div><div class="desc">Casual, Viral, Professional, etc.</div></div>
+        <div class="value">${cfg.feature_style ? '✅' : '🔒 Growth+'}</div>
+      </div>
+      <div class="settings-row">
+        <div><div class="label">Audience Targeting</div><div class="desc">Niche, locations, keywords</div></div>
+        <div class="value">${cfg.feature_audience ? '✅' : '🔒 Growth+'}</div>
+      </div>
+      <div class="settings-row">
+        <div><div class="label">Link-in-Bio</div><div class="desc">Drive traffic to your website</div></div>
+        <div class="value">${cfg.feature_link_promo ? '✅' : '🔒 Growth+'}</div>
+      </div>`;
+    document.getElementById('planFeatures').innerHTML = planFeaturesHTML;
+
+    const stats = await api('/api/stats');
+    document.getElementById('statsRow').innerHTML = `
+      <div class="stat-card"><div class="val">${stats.accounts}</div><div class="lbl">Total Accounts ${tip('All Threads accounts you\'ve connected')}</div></div>
+      <div class="stat-card"><div class="val">${stats.active_accounts}</div><div class="lbl">Active ${tip('Accounts currently running on auto-pilot')}</div></div>
+      <div class="stat-card"><div class="val">${stats.today_threads}</div><div class="lbl">Threads Today ${tip('Posts created today by the AI')}</div></div>
+      <div class="stat-card"><div class="val">${stats.today_replies}</div><div class="lbl">Replies Today ${tip('Replies to trending posts today')}</div></div>
+    `;
+
+    accounts = await api('/api/accounts');
+    renderDashboardAccounts();
+    renderAccountGrid();
+    loadDashboardPosts();
+    if (accounts.length > 0 && !selectedAccountId) {
+      selectAccount(accounts[0].id);
+    } else if (accounts.length === 0) {
+      // First-time user — show onboarding
+      setTimeout(() => onboardStart(), 500);
+    }
+  } catch(e) {
+    toast('error', 'Failed to load dashboard');
+  }
+}
+
+// ════════════════════════════════════════════
+// DASHBOARD TAB
+// ════════════════════════════════════════════
+
+function renderDashboardAccounts() {
+  const el = document.getElementById('dashAccountList');
+  if (!accounts.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">📱</div>No accounts yet<div class="empty-cta"><button class="btn btn-primary btn-sm" onclick="showAddAccount()">+ Add Your First Account</button></div></div>`;
+    return;
+  }
+  el.innerHTML = `<div class="acct-grid">${accounts.map(a => `
+    <div class="acct-card" onclick="switchTab('accounts');selectAccount(${a.id})">
+      <div class="top">
+        <div><div class="name">${a.display_name || a.username || 'Unnamed'}</div>
+        <div class="username">@${a.username || '—'}</div></div>
+        <span class="badge ${a.active ? 'badge-active' : 'badge-paused'}">${a.active ? 'Active' : 'Paused'}</span>
+      </div>
+      <div class="metrics">
+        <span>🧵 ${a.today_threads}</span>
+        <span>💬 ${a.today_replies}</span>
+        <span>📅 ${a.schedules_active} slots</span>
+      </div>
+    </div>
+  `).join('')}</div>`;
+}
+
+async function loadDashboardPosts() {
+  const el = document.getElementById('dashPostList');
+  try {
+    const posts = await api('/api/posts');
+    if (!posts.length) {
+      el.innerHTML = '<div class="empty"><div class="empty-icon">📝</div>No activity yet — posts will appear here once your schedules run</div>';
+      return;
+    }
+    el.innerHTML = posts.map(p => `
+      <div class="post-item">
+        <div class="post-meta">
+          <span class="post-type ${p.type}">${p.type.replace('_',' ')}</span>
+          <span class="post-time">${new Date(p.posted_at).toLocaleString()}</span>
+          ${p.likes > 0 ? '<span>❤️ '+p.likes+'</span>' : ''}
+          ${p.replies > 0 ? '<span>💬 '+p.replies+'</span>' : ''}
+        </div>
+        <div class="post-preview">${p.preview || '(no preview)'}</div>
+      </div>
+    `).join('');
+  } catch(e) {
+    el.innerHTML = '<div class="empty">Failed to load posts</div>';
+  }
+}
+
+// ════════════════════════════════════════════
+// ACCOUNTS TAB
+// ════════════════════════════════════════════
+
+function renderAccountGrid() {
+  const el = document.getElementById('accountGrid');
+  if (!accounts.length) {
+    el.innerHTML = `<div class="empty" style="grid-column:1/-1"><div class="empty-icon">📱</div>No accounts yet<div class="empty-cta"><button class="btn btn-primary btn-sm" onclick="showAddAccount()">+ Add Account</button></div></div>`;
+    return;
+  }
+  el.innerHTML = accounts.map(a => {
+    const tPct = Math.min((a.today_threads / Math.max(a.target_threads || 1, 1)) * 100, 100);
+    const rPct = Math.min((a.today_replies / Math.max(a.target_replies || 1, 1)) * 100, 100);
+    const tColor = tPct >= 100 ? 'green' : tPct >= 50 ? 'yellow' : 'red';
+    const rColor = rPct >= 100 ? 'green' : rPct >= 50 ? 'yellow' : 'red';
+    return `<div class="acct-card ${selectedAccountId === a.id ? 'selected' : ''}" onclick="selectAccount(${a.id})">
+      <div class="top">
+        <div><div class="name">${a.display_name || a.username || 'Unnamed'}</div>
+        <div class="username">@${a.username || '—'} ${a.niche ? '· ' + a.niche.replace(/_/g, ' ') : ''}</div></div>
+        <span class="badge ${a.active ? 'badge-active' : 'badge-paused'}">${a.active ? 'Active' : 'Paused'}</span>
+      </div>
+      <div class="progress-row" style="padding:2px 0">
+        <span class="progress-label">🧵 Threads</span>
+        <div class="progress-track"><div class="progress-fill ${tColor}" style="width:${tPct}%"></div></div>
+        <span class="progress-num" style="color:${tPct >= 100 ? '#22c55e' : tPct >= 50 ? '#eab308' : '#ef4444'}">${a.today_threads}${a.target_threads > 0 ? '/'+a.target_threads : ''}</span>
+      </div>
+      <div class="progress-row" style="padding:2px 0">
+        <span class="progress-label">💬 Replies</span>
+        <div class="progress-track"><div class="progress-fill ${rColor}" style="width:${rPct}%"></div></div>
+        <span class="progress-num" style="color:${rPct >= 100 ? '#22c55e' : rPct >= 50 ? '#eab308' : '#ef4444'}">${a.today_replies}${a.target_replies > 0 ? '/'+a.target_replies : ''}</span>
+      </div>
+      <div style="font-size:11px;color:#555;margin-top:4px">📅 ${a.schedules_active} schedules</div>
+    </div>`;
+  }).join('');
+}
+
+async function selectAccount(id) {
+  selectedAccountId = id;
+  renderAccountGrid();
+  const el = document.getElementById('detailPanel');
+  el.innerHTML = skelBlock(3);
+
+  try {
+    const detail = await api(`/api/accounts/${id}/detail`);
+    const scheds = await api(`/api/accounts/${id}/schedules`);
+    const posts = await api(`/api/accounts/${id}/posts`);
+
+    el.innerHTML = `
+      <div class="detail-panel">
+        <div class="detail-header">
+          <div>
+            <div class="name">${detail.display_name || detail.username || 'Unnamed'}</div>
+            <div class="username">@${detail.username || '—'} · ${detail.niche || 'universal_usa'}</div>
+          </div>
+          <div class="detail-actions">
+            <button class="btn btn-primary btn-sm" onclick="toggleAccount(${id})">${detail.active ? '⏸ Pause' : '▶ Activate'}</button>
+            <button class="btn btn-danger btn-sm" onclick="showDeleteAccount(${id})">🗑 Delete</button>
+          </div>
+        </div>
+
+        <div class="detail-metrics">
+          <div class="detail-metric"><div class="val">${detail.today_threads}/${detail.target_threads}</div><div class="lbl">Today Threads</div></div>
+          <div class="detail-metric"><div class="val">${detail.today_replies}/${detail.target_replies}</div><div class="lbl">Today Replies</div></div>
+          <div class="detail-metric"><div class="val">${detail.total_posts}</div><div class="lbl">Total Posts</div></div>
+          <div class="detail-metric"><div class="val">${detail.total_likes}</div><div class="lbl">Total Likes</div></div>
+        </div>
+
+        <div class="detail-tabs">
+          <button class="detail-tab active" onclick="switchDetailTab(this,'targets')">📈 Targets</button>
+          <button class="detail-tab" onclick="switchDetailTab(this,'content')">🎨 Content</button>
+          <button class="detail-tab" onclick="switchDetailTab(this,'audience')">🌐 Audience</button>
+          <button class="detail-tab" onclick="switchDetailTab(this,'replies')">💬 Replies</button>
+          <button class="detail-tab" onclick="switchDetailTab(this,'limits')">⚙️ Limits</button>
+          <button class="detail-tab" onclick="switchDetailTab(this,'schedules')">⏰ Schedules</button>
+          <button class="detail-tab" onclick="switchDetailTab(this,'posts')">📝 Posts</button>
+        </div>
+
+        <!-- 📈 Targets -->
+        <div class="detail-section active" id="dt-targets">
+          <div class="form-row">
+            <div class="form-group">
+              <label>🧵 Threads Target</label>
+              <div class="progress-row" style="padding:2px 0 8px">
+                <div class="progress-track"><div class="progress-fill ${detail.today_threads >= detail.target_threads ? 'green' : detail.today_threads >= detail.target_threads*0.5 ? 'yellow' : 'red'}" style="width:${Math.min((detail.today_threads/Math.max(detail.target_threads||1,1))*100,100)}%"></div></div>
+                <span class="progress-num">${detail.today_threads}/${detail.target_threads}</span>
+              </div>
+              <input type="number" id="target_threads" value="${detail.target_threads}" min="0" max="50" onchange="markDirty()">
+              <div class="desc">How many threads to post per day</div>
+            </div>
+            <div class="form-group">
+              <label>💬 Replies Target</label>
+              <div class="progress-row" style="padding:2px 0 8px">
+                <div class="progress-track"><div class="progress-fill ${detail.today_replies >= detail.target_replies ? 'green' : detail.today_replies >= detail.target_replies*0.5 ? 'yellow' : 'red'}" style="width:${Math.min((detail.today_replies/Math.max(detail.target_replies||1,1))*100,100)}%"></div></div>
+                <span class="progress-num">${detail.today_replies}/${detail.target_replies}</span>
+              </div>
+              <input type="number" id="target_replies" value="${detail.target_replies}" min="0" max="50" onchange="markDirty()">
+              <div class="desc">How many replies to post per day</div>
+            </div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="saveAccountSettings(${id})" style="margin-top:4px">💾 Save Targets</button>
+          <span id="dirtyBadge" style="display:none;color:#eab308;font-size:12px;margin-left:8px">⚠️ Unsaved changes</span>
+        </div>
+
+        <!-- 🎨 Content -->
+        <div class="detail-section" id="dt-content">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Content Style</label>
+              <select id="contentStyle">
+                <option value="casual" ${detail.content_style==='casual'?'selected':''}>😎 Casual — Friendly bestie</option>
+                <option value="viral" ${detail.content_style==='viral'?'selected':''}>🔥 Viral — Hot takes + hooks</option>
+                <option value="professional" ${detail.content_style==='professional'?'selected':''}>💼 Professional — Expert voice</option>
+                <option value="educational" ${detail.content_style==='educational'?'selected':''}>📚 Educational — Teach & explain</option>
+                <option value="controversial" ${detail.content_style==='controversial'?'selected':''}>🌶 Controversial — Spark debate</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Vibe</label>
+              <input type="text" id="vibeInput" value="${detail.vibe||''}" placeholder="e.g. 'skibidi gen z', 'startup founder'">
+              <div class="desc">Describe the voice / personality</div>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Tone</label>
+              <select id="postTone">
+                <option value="friendly" ${detail.post_tone==='friendly'?'selected':''}>😊 Friendly</option>
+                <option value="professional" ${detail.post_tone==='professional'?'selected':''}>💼 Professional</option>
+                <option value="sarcastic" ${detail.post_tone==='sarcastic'?'selected':''}>😏 Sarcastic / Witty</option>
+                <option value="inspirational" ${detail.post_tone==='inspirational'?'selected':''}>✨ Inspirational</option>
+                <option value="controversial" ${detail.post_tone==='controversial'?'selected':''}>🌶 Controversial / Hot take</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Post Length</label>
+              <select id="postLength">
+                <option value="short" ${detail.post_length==='short'?'selected':''}>📏 Short (< 100 chars)</option>
+                <option value="medium" ${detail.post_length==='medium'?'selected':''}>📏 Medium (100-300 chars)</option>
+                <option value="long" ${detail.post_length==='long'?'selected':''}>📏 Long threads (300+ chars)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Post Format</label>
+              <select id="postFormat">
+                <option value="text" ${detail.post_format==='text'?'selected':''}>📝 Text only</option>
+                <option value="image" ${detail.post_format==='image'?'selected':''}>🖼 Image + caption</option>
+                <option value="mixed" ${detail.post_format==='mixed'?'selected':''}>🔄 Mixed</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>🔑 Topic Keywords</label>
+            <textarea id="topicKeywords" placeholder="e.g. AI, startups, productivity, saas, growth">${detail.topic_keywords||''}</textarea>
+            <div class="desc">Topics your content should focus on (comma-separated or JSON array)</div>
+          </div>
+          <div class="form-group">
+            <label>🚫 Avoid Topics</label>
+            <textarea id="avoidTopics" placeholder="e.g. politics, religion, covid">${detail.avoid_topics||''}</textarea>
+            <div class="desc">Topics the AI should NEVER write about</div>
+          </div>
+          ${detail.plan_config.feature_link_promo ? `
+          <label style="display:flex;align-items:center;gap:8px;margin:8px 0;font-size:13px;cursor:pointer">
+            <input type="checkbox" id="linksEnabled" ${detail.links_enabled?'checked':''}>
+            Enable link-in-bio promotion (posts drive profile visits)
+          </label>` : `<div style="font-size:12px;color:#555;margin:8px 0">🔒 Link promotion — Growth plan</div>`}
+          <button class="btn btn-primary btn-sm" onclick="saveAccountSettings(${id})">💾 Save Content Settings</button>
+        </div>
+
+        <!-- 🌐 Audience -->
+        <div class="detail-section" id="dt-audience">
+          <div class="form-group">
+            <label>Target Niche</label>
+            <input type="text" id="targetNiche" value="${detail.target_niche||''}" placeholder="e.g. SaaS founders, fitness enthusiasts, crypto traders">
+            <div class="desc">Describe your ideal audience niche</div>
+          </div>
+          <div class="form-group">
+            <label>Target Locations</label>
+            <input type="text" id="targetLocations" value="${detail.target_locations||''}" placeholder='e.g. ["United States","Canada","United Kingdom"]'>
+            <div class="desc">JSON array of target countries — leave empty for global</div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="saveAccountSettings(${id})">💾 Save Audience Settings</button>
+        </div>
+
+        <!-- 💬 Replies -->
+        <div class="detail-section" id="dt-replies">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Reply Tone</label>
+              <select id="replyTone">
+                <option value="value_add" ${detail.reply_tone==='value_add'?'selected':''}>💡 Add value / Inform</option>
+                <option value="agree" ${detail.reply_tone==='agree'?'selected':''}>👍 Agree + amplify</option>
+                <option value="disagree" ${detail.reply_tone==='disagree'?'selected':''}>👎 Disagree / Debate</option>
+                <option value="question" ${detail.reply_tone==='question'?'selected':''}>❓ Ask a question</option>
+                <option value="humor" ${detail.reply_tone==='humor'?'selected':''}>😂 Humor / Witty</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Reply Length</label>
+              <select id="replyLength">
+                <option value="short" ${detail.reply_length==='short'?'selected':''}>Short — quick takes</option>
+                <option value="medium" ${detail.reply_length==='medium'?'selected':''}>Medium — add context</option>
+                <option value="long" ${detail.reply_length==='long'?'selected':''}>Long — deep dives</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Viral Threshold</label>
+              <input type="number" id="viralThreshold" value="${detail.viral_threshold}" min="0" max="10000">
+              <div class="desc">Min likes on a post before replying (0 = any post)</div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>🔑 Reply Keywords</label>
+            <textarea id="replyKeywords" placeholder="e.g. AI, ChatGPT, startup idea, growth hack">${detail.reply_keywords||''}</textarea>
+            <div class="desc">Only reply to posts mentioning these keywords (comma-separated or JSON array)</div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="saveAccountSettings(${id})">💾 Save Reply Strategy</button>
+        </div>
+
+        <!-- ⚙️ Limits -->
+        <div class="detail-section" id="dt-limits">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Max Threads / Day</label>
+              <input type="number" id="max_threads" value="${detail.max_threads}" min="1" max="100">
+              <div class="desc">Hard cap on daily threads (plan max: ${detail.plan_config.max_posts_day})</div>
+            </div>
+            <div class="form-group">
+              <label>Max Replies / Day</label>
+              <input type="number" id="max_replies" value="${detail.max_replies}" min="1" max="100">
+              <div class="desc">Hard cap on daily replies</div>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>🌙 Sleep Start (UTC)</label>
+              <input type="number" id="sleep_hours_start" value="${detail.sleep_hours_start}" min="0" max="23">
+              <div class="desc">No activity after this UTC hour</div>
+            </div>
+            <div class="form-group">
+              <label>🌅 Sleep End (UTC)</label>
+              <input type="number" id="sleep_hours_end" value="${detail.sleep_hours_end}" min="0" max="23">
+              <div class="desc">Activity resumes at this UTC hour</div>
+            </div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="saveAccountSettings(${id})">💾 Save Limits</button>
+        </div>
+
+        <!-- ⏰ Schedules -->
+        <div class="detail-section" id="dt-schedules">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <span style="font-size:13px;color:#888">Posting schedule for auto-pilot</span>
+            <button class="btn btn-primary btn-sm" onclick="showAddSchedule(${id})">+ Add Slot</button>
+          </div>
+          ${scheds.length ? `<div class="sched-grid">${scheds.map(s => {
+            const hourPct = ((s.hour_utc + 24) % 24) / 24 * 100;
+            const statusColor = s.last_status === 'ok' ? '#22c55e' : s.last_status === 'error' ? '#ef4444' : '#555';
+            return `<div class="sched-row">
+              <div class="sched-label">${s.slot_name}</div>
+              <div class="sched-vis">
+                <div class="sched-bar ${s.enabled ? 'on' : ''}" style="width:${s.enabled ? hourPct+4 : 4}%"></div>
+              </div>
+              <div style="width:100px;font-size:12px;color:#555">${toLocalTime(s.hour_utc)}</div>
+              <div style="width:50px;font-size:12px;color:${statusColor}">${s.last_status || 'never'}</div>
+              <button class="toggle-btn" onclick="toggleSchedule(${id},${s.id})">${s.enabled ? 'On' : 'Off'}</button>
+              <button class="btn-icon" onclick="deleteSchedule(${id},${s.id})" title="Delete slot">✕</button>
+            </div>`;
+          }).join('')}</div>` : '<div class="empty">No schedules configured</div>'}
+        </div>
+
+        <!-- 📝 Posts -->
+        <div class="detail-section" id="dt-posts">
+          <span style="font-size:13px;color:#888;display:block;margin-bottom:8px">${posts.length} recent posts by this account</span>
+          ${posts.length ? `<div>${posts.map(p => `
+            <div class="post-item">
+              <div class="post-meta">
+                <span class="post-type ${p.type}">${p.type.replace('_',' ')}</span>
+                <span class="post-time">${new Date(p.posted_at).toLocaleString()}</span>
+              </div>
+              <div class="post-preview">${p.preview || '(no preview)'}</div>
+              <div class="post-stats">
+                ${p.code ? '<span>📎 t/'+p.code+'</span>' : ''}
+                <span>❤️ ${p.likes || 0}</span>
+                <span>💬 ${p.replies || 0}</span>
+              </div>
+            </div>
+          `).join('')}</div>` : '<div class="empty">No posts yet</div>'}
+        </div>
+      </div>`;
+  } catch(e) {
+    el.innerHTML = '<div class="empty">Failed to load account details</div>';
+  }
+}
+
+async function toggleAccount(id) {
+  try {
+    await api(`/api/accounts/${id}/toggle`, {method:'POST'});
+    toast('success', 'Account toggled');
+    accounts = await api('/api/accounts');
+    selectAccount(id);
+  } catch(e) {
+    toast('error', 'Failed to toggle account');
+  }
+}
+
+function switchDetailTab(btn, section) {
+  document.querySelectorAll('.detail-tab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.detail-section').forEach(s => s.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('dt-' + section).classList.add('active');
+}
+
+let dirtySettings = false;
+function markDirty() { dirtySettings = true; document.getElementById('dirtyBadge').style.display = 'inline'; }
+
+async function saveAccountSettings(accountId) {
+  try {
+    const body = {};
+    ['target_threads','target_replies','max_threads','max_replies',
+     'sleep_hours_start','sleep_hours_end','viral_threshold'].forEach(f => {
+      const el = document.getElementById(f);
+      if (el) body[f] = parseInt(el.value) || 0;
+    });
+    ['content_style','vibe','post_tone','post_length','post_format',
+     'topic_keywords','avoid_topics','target_niche','target_locations',
+     'reply_keywords','reply_tone','reply_length'].forEach(f => {
+      const el = document.getElementById(f === 'vibe' ? 'vibeInput' :
+        f === 'content_style' ? 'contentStyle' :
+        f === 'post_tone' ? 'postTone' :
+        f === 'post_length' ? 'postLength' :
+        f === 'post_format' ? 'postFormat' :
+        f === 'topic_keywords' ? 'topicKeywords' :
+        f === 'avoid_topics' ? 'avoidTopics' :
+        f === 'target_niche' ? 'targetNiche' :
+        f === 'target_locations' ? 'targetLocations' :
+        f === 'reply_keywords' ? 'replyKeywords' :
+        f === 'reply_tone' ? 'replyTone' :
+        f === 'reply_length' ? 'replyLength' : f);
+      if (el) body[f] = el.value;
+    });
+    const linksEl = document.getElementById('linksEnabled');
+    if (linksEl) body['links_enabled'] = linksEl.checked;
+
+    await api(`/api/accounts/${accountId}/settings`, {method:'PUT', body:JSON.stringify(body)});
+    toast('success', 'Settings saved');
+    dirtySettings = false;
+    document.getElementById('dirtyBadge').style.display = 'none';
+    accounts = await api('/api/accounts');
+    selectAccount(accountId);
+  } catch(e) {
+    toast('error', e.message || 'Failed to save settings');
+  }
+}
+
+async function toggleSchedule(accountId, scheduleId) {
+  try {
+    const r = await api(`/api/accounts/${accountId}/schedules/${scheduleId}/toggle`, {method:'POST'});
+    toast('info', r.enabled ? 'Schedule enabled' : 'Schedule disabled');
+    selectAccount(accountId);
+  } catch(e) {
+    toast('error', 'Failed to toggle schedule');
+  }
+}
+
+// ── Delete Account ──
+function showDeleteAccount(id) {
+  deleteTargetId = id;
+  document.getElementById('deleteModal').classList.add('show');
+}
+
+function closeDeleteModal() {
+  document.getElementById('deleteModal').classList.remove('show');
+  deleteTargetId = null;
+}
+
+async function confirmDeleteAccount() {
+  if (!deleteTargetId) return;
+  try {
+    await api(`/api/accounts/${deleteTargetId}`, {method:'DELETE'});
+    toast('success', 'Account deleted');
+    closeDeleteModal();
+    selectedAccountId = null;
+    accounts = await api('/api/accounts');
+    renderAccountGrid();
+    document.getElementById('detailPanel').innerHTML = '<div class="empty">Select an account to view details</div>';
+  } catch(e) {
+    document.getElementById('deleteError').textContent = e.message;
+    document.getElementById('deleteError').style.display = 'block';
+  }
+}
+
+// ── Add Account ──
+
+function showAddAccount() {
+  document.getElementById('inputThreadsUser').value = '';
+  document.getElementById('inputThreadsPass').value = '';
+  document.getElementById('modalError').style.display = 'none';
+  detectCountry();
+  document.getElementById('addModal').classList.add('show');
+}
+
+function closeModal() {
+  document.getElementById('addModal').classList.remove('show');
+}
+
+// ── Country detection ──
+function detectCountry() {
+  const select = document.getElementById('inputCountry');
+  const map = {
+    'United States': 'UnitedStates', 'Canada': 'Canada', 'United Kingdom': 'UnitedKingdom',
+    'Germany': 'Germany', 'France': 'France', 'Australia': 'Australia',
+    'Netherlands': 'Netherlands', 'Singapore': 'Singapore', 'Japan': 'Japan',
+    'India': 'India', 'Brazil': 'Brazil', 'Mexico': 'Mexico', 'Argentina': 'Argentina',
+    'Spain': 'Spain', 'Italy': 'Italy', 'Sweden': 'Sweden', 'Switzerland': 'Switzerland',
+    'Belgium': 'Belgium', 'Ireland': 'Ireland', 'Norway': 'Norway', 'Denmark': 'Denmark',
+    'Finland': 'Finland', 'Portugal': 'Portugal', 'Austria': 'Austria', 'Poland': 'Poland',
+    'Czech Republic': 'Czechia', 'Czechia': 'Czechia', 'Bulgaria': 'Bulgaria',
+    'Romania': 'Romania', 'Croatia': 'Croatia', 'Slovakia': 'Slovakia',
+    'Slovenia': 'Slovenia', 'Lithuania': 'Lithuania', 'Latvia': 'Latvia',
+    'Estonia': 'Estonia', 'Luxembourg': 'Luxembourg', 'South Africa': 'SouthAfrica',
+    'Israel': 'Israel', 'Turkey': 'Turkey', 'South Korea': 'SouthKorea',
+    'Taiwan': 'Taiwan', 'Hong Kong': 'HongKong', 'Malaysia': 'Malaysia',
+    'Indonesia': 'Indonesia', 'Philippines': 'Philippines', 'Thailand': 'Thailand',
+    'Vietnam': 'Vietnam', 'Colombia': 'Colombia', 'Chile': 'Chile', 'Peru': 'Peru',
+    'New Zealand': 'NewZealand', 'United Arab Emirates': 'UnitedArabEmirates',
+    'Saudi Arabia': 'SaudiArabia', 'Egypt': 'Egypt', 'Nigeria': 'Nigeria',
+    'Kenya': 'Kenya', 'Ukraine': 'Ukraine', 'Serbia': 'Serbia', 'Greece': 'Greece',
+    'Hungary': 'Hungary', 'Cyprus': 'Cyprus', 'Malta': 'Malta', 'Iceland': 'Iceland',
+  };
+
+  // Server-side detection (most reliable — uses client IP)
+  api('/api/me/geo')
+    .then(data => {
+      const val = map[data.country_name];
+      if (val) { select.value = val; return; }
+    })
+    .catch(() => {})
+    .finally(() => {
+      // Fallback: browser-side geolocation (for users with ipapi.co unblocked)
+      fetch('https://ipapi.co/json/')
+        .then(r => r.json())
+        .then(data => {
+          const val = map[data.country_name];
+          if (val) select.value = val;
+        })
+        .catch(() => {});
+    });
+}
+
+function getProxyUrl(country) {
+  return `proxy.packetstream.io:31112:redkoohh:f2f6ef17346136e8_country-${country}`;
+}
+
+async function saveAccount() {
+  const threadsUser = document.getElementById('inputThreadsUser').value.trim();
+  const threadsPass = document.getElementById('inputThreadsPass').value;
+  const country = document.getElementById('inputCountry').value;
+
+  if (!threadsUser || !threadsPass) {
+    document.getElementById('modalError').textContent = 'Please enter your Threads email and password';
+    document.getElementById('modalError').style.display = 'block';
+    return;
+  }
+
+  const btn = document.getElementById('connectBtn');
+  btn.textContent = 'Logging in...';
+  btn.disabled = true;
+
+  let cookies = [];
+  try {
+    const result = await api('/api/threads/login', {
+      method: 'POST',
+      body: JSON.stringify({username: threadsUser, password: threadsPass})
+    });
+    if (result.ok && result.cookies) {
+      cookies = Object.entries(result.cookies).map(([name, value]) => ({name, value}));
+    } else {
+      document.getElementById('modalError').textContent = result.error || 'Login failed';
+      document.getElementById('modalError').style.display = 'block';
+      btn.textContent = 'Connect Account';
+      btn.disabled = false;
+      return;
+    }
+  } catch(e) {
+    document.getElementById('modalError').textContent = e.message;
+    document.getElementById('modalError').style.display = 'block';
+    btn.textContent = 'Connect Account';
+    btn.disabled = false;
+    return;
+  }
+
+  // Build proxy URL from selected country
+  const proxy = getProxyUrl(country);
+
+  try {
+    await api('/api/accounts', {
+      method: 'POST',
+      body: JSON.stringify({
+        username: threadsUser,
+        display_name: threadsUser,
+        niche: 'universal_usa',
+        cookies,
+        proxy
+      })
+    });
+    toast('success', `Connected via ${country}!`);
+    closeModal();
+    accounts = await api('/api/accounts');
+    renderAccountGrid();
+    if (accounts.length > 0) selectAccount(accounts[0].id);
+  } catch(e) {
+    document.getElementById('modalError').textContent = e.message;
+    document.getElementById('modalError').style.display = 'block';
+  }
+  btn.textContent = 'Connect Account';
+  btn.disabled = false;
+}
+
+// ════════════════════════════════════════════
+// ANALYTICS TAB
+// ════════════════════════════════════════════
+
+async function loadAnalytics() {
+  const statsEl = document.getElementById('analyticsStats');
+  const chartEl = document.getElementById('analyticsChart');
+  const acctsEl = document.getElementById('analyticsAccounts');
+
+  try {
+    const stats = await api('/api/stats');
+    statsEl.innerHTML = `
+      <div class="stat-card"><div class="val">${stats.today_threads}</div><div class="lbl">Threads Today</div></div>
+      <div class="stat-card"><div class="val">${stats.today_replies}</div><div class="lbl">Replies Today</div></div>
+      <div class="stat-card"><div class="val">${stats.active_accounts}/${stats.accounts}</div><div class="lbl">Active Accounts</div></div>
+    `;
+
+    const history = await api('/api/stats/history');
+    if (history.length) {
+      const maxPosts = Math.max(...history.map(h => h.posts), 1);
+      chartEl.innerHTML = '<div class="chart-bars">' + history.slice().reverse().map(h => {
+        const pct = Math.max((h.posts / maxPosts) * 100, 4);
+        return `<div class="chart-bar" style="height:${pct}%" title="${h.day}: ${h.posts} posts, ${h.likes} likes">
+          <div class="bar-val">${h.posts}</div>
+          <div class="bar-lbl">${h.day.slice(5)}</div>
+        </div>`;
+      }).join('') + '</div>';
+    } else {
+      chartEl.innerHTML = '<div class="empty">No data yet — posts will appear once your schedules run</div>';
+    }
+
+    // Per-account performance
+    if (accounts.length) {
+      acctsEl.innerHTML = accounts.map(a => `
+        <div class="post-item" style="display:flex;justify-content:space-between;align-items:center">
+          <div><strong>${a.display_name || a.username || 'Unnamed'}</strong>
+            <span style="color:#555;font-size:12px;margin-left:8px">@${a.username || '—'}</span>
+          </div>
+          <div style="display:flex;gap:16px;font-size:13px;color:#888">
+            <span>🧵 ${a.today_threads}</span>
+            <span>💬 ${a.today_replies}</span>
+            <span class="badge ${a.active ? 'badge-active' : 'badge-paused'}">${a.active ? 'Active' : 'Paused'}</span>
+          </div>
+        </div>
+      `).join('');
+    } else {
+      acctsEl.innerHTML = '<div class="empty">Add an account to see performance</div>';
+    }
+  } catch(e) {
+    statsEl.innerHTML = '<div class="empty">Failed to load analytics</div>';
+  }
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  const btn = document.querySelector(`.tab-btn[data-tab="${name}"]`);
+  if (btn) btn.classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+  if (name === 'accounts') refreshAccounts();
+  if (name === 'analytics') loadAnalytics();
+}
+
+// ── Search & Filter ──
+function filterAccounts() {
+  const q = (document.getElementById('accountSearch').value || '').toLowerCase();
+  const cards = document.querySelectorAll('#accountGrid .acct-card');
+  cards.forEach(c => {
+    const text = c.textContent.toLowerCase();
+    const isActive = !c.querySelector('.badge-paused');
+    const matchesFilter = filterMode === 'all' || (filterMode === 'active' && isActive) || (filterMode === 'paused' && !isActive);
+    const matchesSearch = !q || text.includes(q);
+    c.style.display = matchesFilter && matchesSearch ? '' : 'none';
+  });
+}
+
+function toggleFilter(el, mode) {
+  filterMode = mode;
+  document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  filterAccounts();
+}
+
+// ── Export ──
+function exportCSV() {
+  if (!accounts.length) { toast('error', 'No accounts to export'); return; }
+  let csv = 'Username,Display Name,Niche,Status,Threads Today,Replies Today,Active Slots\n';
+  accounts.forEach(a => {
+    csv += `${a.username || ''},${a.display_name || ''},${a.niche || ''},${a.active ? 'Active' : 'Paused'},${a.today_threads},${a.today_replies},${a.schedules_active}\n`;
+  });
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'threads_accounts.csv'; a.click();
+  URL.revokeObjectURL(url);
+  toast('success', 'CSV exported');
+}
+
+// ── Refresh ──
+function updateLastUpdated() {
+  document.getElementById('lastUpdated').innerHTML = `Last updated: ${new Date().toLocaleTimeString()} <button onclick="refreshAll()">↻ Refresh</button>`;
+}
+
+async function refreshAll() {
+  accounts = await api('/api/accounts');
+  renderAccountGrid();
+  updateLastUpdated();
+  if (selectedAccountId && accounts.find(a => a.id === selectedAccountId)) {
+    selectAccount(selectedAccountId);
+  } else if (accounts.length) {
+    selectAccount(accounts[0].id);
+  }
+  toast('info', 'Refreshed');
+}
+
+async function refreshAccounts() {
+  if (!accounts.length) return;
+  const accts = await api('/api/accounts');
+  accounts = accts;
+  renderAccountGrid();
+  updateLastUpdated();
+  if (selectedAccountId) {
+    const stillExists = accounts.find(a => a.id === selectedAccountId);
+    if (stillExists) selectAccount(selectedAccountId);
+    else { selectedAccountId = null; document.getElementById('detailPanel').innerHTML = '<div class="empty">Select an account to view details</div>'; }
+  }
+}
+
+// ── Schedule CRUD ──
+let scheduleAccountId = null;
+
+function showAddSchedule(accountId) {
+  scheduleAccountId = accountId;
+  document.getElementById('schedHour').value = '12';
+  document.getElementById('schedError').style.display = 'none';
+  document.getElementById('schedModal').classList.add('show');
+}
+
+function closeSchedModal() {
+  document.getElementById('schedModal').classList.remove('show');
+  scheduleAccountId = null;
+}
+
+async function saveSchedule() {
+  const hour = parseInt(document.getElementById('schedHour').value);
+  if (isNaN(hour) || hour < 0 || hour > 23) {
+    document.getElementById('schedError').textContent = 'Enter a valid hour (0-23)';
+    document.getElementById('schedError').style.display = 'block';
+    return;
+  }
+  try {
+    await api(`/api/accounts/${scheduleAccountId}/schedules`, {
+      method: 'POST',
+      body: JSON.stringify({hour_utc: hour})
+    });
+    toast('success', `Slot at UTC ${hour}:00 added`);
+    closeSchedModal();
+    selectAccount(scheduleAccountId);
+  } catch(e) {
+    document.getElementById('schedError').textContent = e.message;
+    document.getElementById('schedError').style.display = 'block';
+  }
+}
+
+async function deleteSchedule(accountId, scheduleId) {
+  if (!confirm('Delete this schedule slot?')) return;
+  try {
+    await api(`/api/accounts/${accountId}/schedules/${scheduleId}`, {method:'DELETE'});
+    toast('success', 'Slot deleted');
+    selectAccount(accountId);
+  } catch(e) {
+    toast('error', 'Failed to delete slot');
+  }
+}
+
+// ── Onboarding Wizard ──
+let onboardStep = 0;
+
+function onboardStart() {
+  onboardStep = 0;
+  document.getElementById('onboardOverlay').classList.add('show');
+  showOnboardStep(0);
+}
+
+function showOnboardStep(i) {
+  onboardStep = i;
+  document.querySelectorAll('.onboard-step').forEach(s => s.style.display = 'none');
+  document.getElementById(`onStep${i+1}`).style.display = 'block';
+  document.querySelectorAll('#onboardDots .step-dot').forEach((d, idx) => {
+    d.classList.toggle('active', idx === i);
+  });
+}
+
+function onboardNext() {
+  if (onboardStep < 3) showOnboardStep(onboardStep + 1);
+}
+
+function onboardPrev() {
+  if (onboardStep > 0) showOnboardStep(onboardStep - 1);
+}
+
+function closeOnboard() {
+  document.getElementById('onboardOverlay').classList.remove('show');
+  if (onboardStep === 2) showAddAccount();
+}
+
+function copyCookieCode() {
+  const code = `document.cookie.split('; ').map(c=>{let[a,b]=c.split('=');return{name:a,value:b}})`;
+  navigator.clipboard.writeText(code).then(() => toast('success', 'Code copied! Paste it in your browser Console'))
+    .catch(() => toast('info', 'Select and copy the code manually'));
+}
+
+function switchBrowserTab(el, name) {
+  document.querySelectorAll('.browser-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.browser-panel').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('browser-' + name).classList.add('active');
+}
+
+// ── Start ──
+document.addEventListener('DOMContentLoaded', loadAll);
+</script>
+</body>
+</html>
