@@ -1,16 +1,28 @@
-"""SaaS Database — SQLAlchemy models + SQLite for MVB"""
+"""SaaS Database — SQLAlchemy models + SQLite (dev) / PostgreSQL (prod)."""
 import os, json
 from datetime import datetime, timedelta
 from sqlalchemy import create_engine, Column, Integer, String, Text, Boolean, DateTime, Float, JSON, ForeignKey
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 from sqlalchemy.pool import StaticPool
 
-DB_PATH = os.environ.get("SAAS_DB", "/home/ubuntu/saas/saas.db")
-engine = create_engine(
-    f"sqlite:///{DB_PATH}",
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-)
+DB_TYPE = os.environ.get("SAAS_DB_TYPE", "sqlite")
+
+if DB_TYPE == "postgresql":
+    DB_USER = os.environ.get("SAAS_DB_USER", "postgres")
+    DB_PASS = os.environ.get("SAAS_DB_PASS", "")
+    DB_HOST = os.environ.get("SAAS_DB_HOST", "localhost")
+    DB_PORT = os.environ.get("SAAS_DB_PORT", "5432")
+    DB_NAME = os.environ.get("SAAS_DB_NAME", "threads_saas")
+    DB_URL = f"postgresql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+    engine = create_engine(DB_URL, pool_size=10, max_overflow=20)
+else:
+    DB_PATH = os.environ.get("SAAS_DB", "/home/ubuntu/saas/saas.db")
+    engine = create_engine(
+        f"sqlite:///{DB_PATH}",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+
 SessionLocal = sessionmaker(bind=engine, autoflush=False)
 Base = declarative_base()
 

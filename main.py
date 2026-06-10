@@ -1,9 +1,11 @@
 """SaaS App — Multi-Tenant Threads Growth Manager"""
-import json, os, sys, secrets, hashlib
+import json, os, sys, secrets, hashlib, asyncio
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
 from fastapi import FastAPI, Request, Depends, HTTPException, Cookie
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from jose import jwt, JWTError
 import stripe
@@ -12,6 +14,9 @@ import urllib.request
 from sqlalchemy import func, extract
 from database import User, Account, Schedule, Post, init_db, get_db, get_account_limit, get_daily_limit
 from threads_login import login_threads, verify_cookies, ThreadsLoginError
+from setup_logging import init_logging, get_logger
+
+logger = get_logger(__name__)
 
 BASE_DIR = Path("/home/ubuntu/saas")
 SECRET_KEY = os.environ.get("SAAS_SECRET", secrets.token_hex(32))
@@ -37,10 +42,25 @@ PROXY_BY_COUNTRY = {
 }
 
 
-app = FastAPI(title="Threads Growth SaaS")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_logging()
+    init_db()
+    logger.info("Threads SaaS starting up")
+    from scheduler import scheduler_loop
+    task = asyncio.create_task(scheduler_loop())
+    yield
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+    logger.info("Threads SaaS shutting down")
 
-# Init DB
-init_db()
+app = FastAPI(title="Threads Growth SaaS", lifespan=lifespan)
+
+# Mount static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
 # ── Auth Helpers ──
@@ -542,7 +562,11 @@ async def api_create_checkout(user: User = Depends(get_current_user)):
         return JSONResponse({"error": "Stripe not configured"}, 503)
     try:
         stripe.api_key = STRIPE_KEY
-        prices = {"starter": "price_starter", "growth": "price_growth", "agency": "price_agency"}
+        prices = {
+            "starter": os.environ.get("STRIPE_PRICE_STARTER", "price_starter"),
+            "growth": os.environ.get("STRIPE_PRICE_GROWTH", "price_growth"),
+            "agency": os.environ.get("STRIPE_PRICE_AGENCY", "price_agency"),
+        }
         checkout = stripe.checkout.Session.create(
             customer_email=user.email,
             mode="subscription",
@@ -559,7 +583,52 @@ async def api_create_checkout(user: User = Depends(get_current_user)):
 @app.post("/api/stripe/webhook")
 async def api_stripe_webhook(request: Request):
     payload = await request.body()
+    sig_header = request.headers.get("stripe-signature", "")
+    webhook_secret = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+
+    if webhook_secret:
+        try:
+            stripe.api_key = STRIPE_KEY
+            event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
+            logger.info(f"Stripe webhook: {event['type']}")
+
+            if event["type"] == "checkout.session.completed":
+                session = event["data"]["object"]
+                user_id = int(session.get("metadata", {}).get("user_id", 0))
+                if user_id:
+                    db = next(get_db())
+                    user = db.query(User).filter(User.id == user_id).first()
+                    if user:
+                        user.status = "active"
+                        db.commit()
+                    db.close()
+
+            elif event["type"] == "customer.subscription.deleted":
+                subscription = event["data"]["object"]
+                customer_id = subscription.get("customer", "")
+                db = next(get_db())
+                user = db.query(User).filter(User.stripe_customer_id == customer_id).first()
+                if user:
+                    user.status = "canceled"
+                    user.plan = "starter"
+                    db.commit()
+                db.close()
+        except Exception as e:
+            logger.error(f"Webhook error: {e}")
+            return JSONResponse({"error": str(e)}, 400)
+
     return {"ok": True}
+
+
+# ── Scheduler Manual Trigger ──
+
+@app.post("/api/scheduler/run-now/{account_id}")
+async def api_scheduler_run_now(account_id: int, user: User = Depends(get_current_user)):
+    from scheduler import run_account_now
+    result = await run_account_now(account_id)
+    if "error" in result:
+        return JSONResponse(result, 400)
+    return result
 
 
 if __name__ == "__main__":

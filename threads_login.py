@@ -11,6 +11,9 @@ import time
 import hashlib
 import re
 import httpx
+from setup_logging import get_logger
+
+logger = get_logger(__name__)
 
 LOGIN_URL = "https://www.instagram.com/api/v1/web/accounts/login/ajax/"
 HOME_URL = "https://www.instagram.com/"
@@ -70,7 +73,7 @@ def login_threads(username: str, password: str) -> dict:
             raise ThreadsLoginError("Failed to obtain initial csrftoken from Instagram")
 
         initial_csrftoken = client.cookies["csrftoken"]
-        print(f"[login] Got initial csrftoken: {initial_csrftoken[:10]}...")
+        logger.info(f"Got initial csrftoken: {initial_csrftoken[:10]}...")
 
         # Extract rollout_hash from response body if present
         rollout_hash = ""
@@ -146,7 +149,7 @@ def login_threads(username: str, password: str) -> dict:
                 f"Got: {list(auth_cookies.keys())}"
             )
 
-        print(f"[login] Success! Got user_id={auth_cookies.get('ds_user_id')}")
+        logger.info(f"Login success! user_id={auth_cookies.get('ds_user_id')}")
         return auth_cookies
 
 
@@ -159,12 +162,12 @@ def verify_cookies(cookies: dict) -> bool:
     Returns:
         True if cookies are valid
     """
-    from threads import ThreadsAuth
     try:
+        from threads import ThreadsAuth
         auth = ThreadsAuth.from_cookies(cookies)
-        client = auth.http
-        resp = client.get("https://www.threads.com/", timeout=15.0)
-        return "login" not in resp.url.path.lower() and resp.status_code == 200
+        valid = auth.health_check()
+        auth.close()
+        return valid
     except Exception as e:
-        print(f"[verify] Cookie validation failed: {e}")
+        logger.warning(f"Cookie validation failed: {e}")
         return False
