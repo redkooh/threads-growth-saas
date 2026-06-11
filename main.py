@@ -1,8 +1,21 @@
 """SaaS App — Multi-Tenant Threads Growth Manager"""
 import json, os, sys, secrets, hashlib, asyncio
+from pathlib import Path
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
-from pathlib import Path
+
+# Load .env before anything else
+_env_path = Path("/home/ubuntu/saas/.env")
+if _env_path.exists():
+    for line in _env_path.read_text().strip().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        if "=" in line and not line.strip().startswith("#"):
+            key, _, val = line.partition("=")
+            key, val = key.strip(), val.strip()
+            if val and not val.startswith("YOUR_") and not val.startswith("change"):
+                os.environ.setdefault(key, val)
 from fastapi import FastAPI, Request, Depends, HTTPException, Cookie
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, FileResponse
 from fastapi.staticfiles import StaticFiles

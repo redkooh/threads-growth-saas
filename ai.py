@@ -1,58 +1,84 @@
 """AI content generation — produces Threads posts using OpenAI/Anthropic LLMs.
 
 Driven by each account's content_style, topic_keywords, tone, length, format,
-vibe, avoid_topics — all stored in the Account model.
+vibe, avoid_topics + live feed context for trend-aware content.
 """
-import os
-import json
+import os, json, random
 import httpx
 from setup_logging import get_logger
 
 logger = get_logger(__name__)
 
-AI_PROVIDER = os.environ.get("AI_PROVIDER", "openai").lower()  # openai | anthropic
+AI_PROVIDER = os.environ.get("AI_PROVIDER", "openai").lower()
 AI_API_KEY = os.environ.get("AI_API_KEY", "")
-AI_MODEL = os.environ.get("AI_MODEL", "")  # defaults set per-provider below
+AI_MODEL = os.environ.get("AI_MODEL", "")
 
 # ── Prompt Templates ──
 
-SYSTEM_PROMPT = (
-    "You are a social media copywriter creating authentic Threads posts. "
-    "Write like a real person, not a robot. Match the requested tone, length, and format exactly. "
-    "Never use hashtags unless specifically asked. Never use emoji overuse. "
-    "Output ONLY the post text — no quotes, no labels, no prefix."
-)
+SYSTEM_THREAD = """You are a social media copywriter creating authentic Threads posts. Write like a real person, not a bot.
 
-THREAD_PROMPT = """Write a single Threads post.
+RULES:
+- Hook in the first 2 lines to stop the scroll
+- Use 2-3 relevant emojis naturally (don't force them)
+- Line breaks between sentences for skimmability
+- End with a question or CTA to drive comments
+- Never use hashtags
+- Never exceed {max_chars} characters
+- Output ONLY the post text — no quotes, no labels, no prefixes
+- Sound like a real American on social media, not a marketing agency"""
 
-Topic context: {topics}
+SYSTEM_REPLY = """You reply to Threads posts naturally. Your reply should add value to the conversation.
+
+RULES:
+- Be conversational, not promotional
+- Use 1 emoji where natural — keeps it human, not botty
+- If the post is a question, answer it genuinely
+- If it's a hot take, add your own spin
+- Never mention "great point" or "totally agree" — be specific
+- Match the OP's energy but don't mimic
+- Keep it under 200 characters unless replying with a story
+- Output ONLY the reply text — no quotes, no labels"""
+
+THREAD_PROMPT = """Write a single viral Threads post.
+
+TOPIC CONTEXT (what to post about):
+{topics}
+
+LIVE TREND CONTEXT (what's happening RIGHT NOW on Threads):
+{feed_context}
+
+Style: {style}
 Tone: {tone}
 Length: {length} ({length_guide})
 Format: {format}
 Vibe: {vibe}
-Avoid mentioning: {avoid}
+AVOID mentioning: {avoid}
+Theme: {theme}
 
 Post:"""
 
 REPLY_PROMPT = """Reply to this Threads post naturally:
 
 ---
+POST BY @{target_username} ({likes} likes, {replies} replies):
 {parent_text}
 ---
 
-Your reply should add value, agree, disagree respectfully, or ask a thoughtful question.
-Tone: {tone}
-Length: {length}
-Keywords to weave in: {keywords}
+Your reply tone: {tone}
+Your reply length: {length}
+Keywords to weave in naturally: {keywords}
+Target's reply count: {replies} ({"high engagement post — add value" if isinstance(replies, int) and replies > 10 else "conversation starter — be friendly"})
 
 Reply:"""
 
 FUN_FACT_PROMPT = """Write a Threads post sharing an interesting fact, insight, or observation.
 
-Topic niche: {topics}
+Topic context: {topics}
 Tone: {tone}
+Style: {style}
 Vibe: {vibe}
 
+Include 1-2 relevant emojis. Make it shareable and surprising.
 Post:"""
 
 # ── Length guides ──
@@ -63,6 +89,31 @@ LENGTH_GUIDE = {
     "long": "5+ sentences, 500-2200 characters (the Threads limit)",
 }
 
+# ── Theme emojis ──
+
+THEME_EMOJI = {
+    "hot_take": "🔥",
+    "real_talk": "💬",
+    "wild_card": "🎲",
+    "nostalgia": "📼",
+    "free_for_all": "🎉",
+    "chill": "☕",
+    "internet_culture": "📱",
+}
+
+TONE_EMOJIS = {
+    "friendly": "😊",
+    "professional": "💼",
+    "sarcastic": "😏",
+    "inspirational": "✨",
+    "controversial": "🌶",
+    "value_add": "💡",
+    "agree": "👍",
+    "disagree": "👎",
+    "question": "❓",
+    "humor": "😂",
+}
+
 
 def _build_chat_messages(system: str, user_prompt: str) -> list:
     return [
@@ -71,13 +122,11 @@ def _build_chat_messages(system: str, user_prompt: str) -> list:
     ]
 
 
-def _call_openai(messages: list, model: str = None) -> str:
+def _call_openai(messages: list, model: str = None, max_tokens: int = 512) -> str:
     if not AI_API_KEY:
         raise ValueError("AI_API_KEY not set")
-
     model = model or AI_MODEL or "gpt-4o-mini"
     url = "https://api.openai.com/v1/chat/completions"
-
     with httpx.Client(timeout=45.0) as client:
         resp = client.post(
             url,
@@ -89,24 +138,21 @@ def _call_openai(messages: list, model: str = None) -> str:
                 "model": model,
                 "messages": messages,
                 "temperature": 0.85,
-                "max_tokens": 512,
+                "max_tokens": max_tokens,
             },
         )
         if resp.status_code != 200:
             logger.error(f"OpenAI error {resp.status_code}: {resp.text[:300]}")
             raise RuntimeError(f"OpenAI API error: {resp.status_code}")
-
         data = resp.json()
         return data["choices"][0]["message"]["content"].strip()
 
 
-def _call_anthropic(messages: list, model: str = None) -> str:
+def _call_anthropic(messages: list, model: str = None, max_tokens: int = 512) -> str:
     if not AI_API_KEY:
         raise ValueError("AI_API_KEY not set")
-
     model = model or AI_MODEL or "claude-3-haiku-20240307"
     url = "https://api.anthropic.com/v1/messages"
-
     system_content = None
     filtered = []
     for m in messages:
@@ -114,16 +160,14 @@ def _call_anthropic(messages: list, model: str = None) -> str:
             system_content = m["content"]
         else:
             filtered.append({"role": m["role"], "content": m["content"]})
-
     body = {
         "model": model,
-        "max_tokens": 512,
+        "max_tokens": max_tokens,
         "temperature": 0.85,
         "messages": filtered,
     }
     if system_content:
         body["system"] = system_content
-
     with httpx.Client(timeout=45.0) as client:
         resp = client.post(
             url,
@@ -137,28 +181,28 @@ def _call_anthropic(messages: list, model: str = None) -> str:
         if resp.status_code != 200:
             logger.error(f"Anthropic error {resp.status_code}: {resp.text[:300]}")
             raise RuntimeError(f"Anthropic API error: {resp.status_code}")
-
         data = resp.json()
         return data["content"][0]["text"].strip()
 
 
-def _call_ai(messages: list) -> str:
-    """Route to the configured AI provider."""
+def _call_ai(messages: list, max_tokens: int = 512) -> str:
     if AI_PROVIDER == "anthropic":
-        return _call_anthropic(messages)
-    return _call_openai(messages)
+        return _call_anthropic(messages, max_tokens=max_tokens)
+    return _call_openai(messages, max_tokens=max_tokens)
 
 
 # ── Helpers ──
 
 def _safe_json_list(val) -> list:
-    """Parse a JSON array from a Text column, returning list or empty."""
     if not val:
         return []
     try:
         return json.loads(val)
     except (json.JSONDecodeError, TypeError):
-        return []
+        # Treat as comma-separated
+        if "," in str(val):
+            return [t.strip() for t in str(val).split(",") if t.strip()]
+        return [str(val)]
 
 
 def _comma_list(topics: list) -> str:
@@ -167,66 +211,141 @@ def _comma_list(topics: list) -> str:
     return ", ".join(str(t) for t in topics[:8])
 
 
+def _parse_feed_context(feed_posts: list = None, max_items: int = 4) -> str:
+    """Extract trends from feed posts for trend-aware content generation."""
+    if not feed_posts:
+        return "No specific trends detected — write evergreen content"
+    lines = []
+    for p in feed_posts[:max_items]:
+        cap = (p.get("caption", "") or "")[:150]
+        if cap:
+            lines.append(f'- @{p.get("username","?")}: "{cap}" ({p.get("like_count",0)}❤️)')
+    if not lines:
+        return "Feed is quiet — write something universally relatable"
+    return "\n".join(lines)
+
+
+STYLES = {
+    "casual": "Friendly, conversational, like talking to a friend",
+    "viral": "Bold takes, hooks, engagement bait, controversial edge",
+    "professional": "Polished, informed, expert voice with data",
+    "educational": "Teach something surprising, explain concepts simply",
+    "controversial": "Unpopular opinions, debate starters, hot takes",
+}
+
+
+def _get_style_desc(style: str) -> str:
+    return STYLES.get(style, STYLES["casual"])
+
+
 # ── Public API ──
 
-def generate_thread(account) -> str:
-    """Generate a thread post based on account's content settings.
+def generate_thread(
+    account,
+    feed_posts: list = None,
+    theme: str = "",
+) -> tuple:
+    """Generate a thread post based on account settings + live feed context.
 
     Args:
-        account: Account ORM instance with content_style, topic_keywords, etc.
+        account: Account ORM instance
+        feed_posts: Optional list of feed post dicts for trend awareness
+        theme: Optional theme day string (e.g. "Hot Take Monday")
+
+    Returns:
+        tuple of (post_text, source_info) where source_info describes what influenced it
     """
     topics = _comma_list(_safe_json_list(account.topic_keywords))
     avoid = _comma_list(_safe_json_list(account.avoid_topics)) or "nothing specific"
+    feed_context = _parse_feed_context(feed_posts)
+    style = _get_style_desc(account.content_style or "casual")
+    theme_str = theme or "general"
+
+    max_chars = 500 if (account.post_length or "medium") != "long" else 2200
 
     prompt = THREAD_PROMPT.format(
         topics=topics,
+        feed_context=feed_context,
+        style=style,
         tone=account.post_tone or "friendly",
         length=account.post_length or "medium",
         length_guide=LENGTH_GUIDE.get(account.post_length, LENGTH_GUIDE["medium"]),
         format=account.post_format or "text",
         vibe=account.vibe or "authentic and relatable",
         avoid=avoid,
+        theme=theme_str,
     )
 
-    messages = _build_chat_messages(SYSTEM_PROMPT, prompt)
+    system = SYSTEM_THREAD.format(max_chars=max_chars)
+    messages = _build_chat_messages(system, prompt)
     content = _call_ai(messages)
     logger.info(f"Generated thread ({account.post_length or 'medium'}, {len(content)} chars)")
-    return content
+
+    # Determine source
+    source = "trend-aware" if feed_posts else "topic-based"
+    return content, source
 
 
-def generate_reply(account, parent_text: str) -> str:
-    """Generate a reply to an existing thread.
+def generate_reply(
+    account,
+    target_post: dict,
+    feed_posts: list = None,
+) -> str:
+    """Generate a reply to a target post.
 
     Args:
         account: Account ORM instance
-        parent_text: The text of the thread to reply to
+        target_post: Dict with thread_code, username, caption, like_count, reply_count
+        feed_posts: Optional — helps the AI understand current feed vibe
+
+    Returns:
+        Reply text string
     """
     keywords = _comma_list(_safe_json_list(account.reply_keywords)) or "any relevant"
+    parent_text = (target_post.get("caption", "") or "")[:1000]
+    target_username = target_post.get("username", "unknown")
+    likes = target_post.get("like_count", 0)
+    replies = target_post.get("reply_count", 0)
+
+    max_tokens = 256 if (account.reply_length or "medium") == "short" else 384
 
     prompt = REPLY_PROMPT.format(
-        parent_text=parent_text[:1000],
+        parent_text=parent_text,
+        target_username=target_username,
+        likes=likes,
+        replies=replies,
         tone=account.reply_tone or "value_add",
         length=account.reply_length or "medium",
         keywords=keywords,
     )
 
-    messages = _build_chat_messages(SYSTEM_PROMPT, prompt)
-    content = _call_ai(messages)
-    logger.info(f"Generated reply ({len(content)} chars)")
+    messages = _build_chat_messages(SYSTEM_REPLY, prompt)
+    content = _call_ai(messages, max_tokens=max_tokens)
+    logger.info(f"Generated reply to @{target_username} ({len(content)} chars)")
     return content
 
 
-def generate_fun_fact(account) -> str:
-    """Generate a fun-fact / insight post based on niche."""
+def generate_fun_fact(account, feed_posts: list = None) -> str:
+    """Generate a fun-fact / insight post, optionally trend-aware."""
     topics = _comma_list(_safe_json_list(account.topic_keywords))
 
+    # If we have feed context, inject it
+    extra = ""
+    if feed_posts:
+        ctx = _parse_feed_context(feed_posts, max_items=3)
+        extra = f"\n\nLive feed context (use for inspiration):\n{ctx}"
+
     prompt = FUN_FACT_PROMPT.format(
-        topics=topics,
+        topics=topics + extra,
         tone=account.post_tone or "friendly",
+        style=_get_style_desc(account.content_style or "casual"),
         vibe=account.vibe or "interesting and engaging",
     )
 
-    messages = _build_chat_messages(SYSTEM_PROMPT, prompt)
-    content = _call_ai(messages)
+    messages = _build_chat_messages(
+        SYSTEM_THREAD.format(max_chars=500),
+        prompt,
+    )
+    content = _call_ai(messages, max_tokens=384)
     logger.info(f"Generated fun-fact ({len(content)} chars)")
     return content
