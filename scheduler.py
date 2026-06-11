@@ -99,8 +99,8 @@ async def run_scheduler():
 
             # ── Authenticate ──
             try:
-                from threads import ThreadsAuth
-                auth = ThreadsAuth.from_cookies(cookies, proxy=proxy)
+                from threads_saas import ThreadsAuthWrapper
+                auth = ThreadsAuthWrapper.from_cookies(cookies, proxy=proxy)
             except Exception as e:
                 logger.error(f"Account {account.id} auth failed: {e}")
                 sched.last_status = f"auth_error"

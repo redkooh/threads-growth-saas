@@ -25,7 +25,7 @@ import stripe
 import urllib.request
 
 from sqlalchemy import func, extract
-from database import User, Account, Schedule, Post, init_db, get_db, get_account_limit, get_daily_limit
+from database import User, Account, Schedule, Post, ContentPreset, init_db, get_db, get_account_limit, get_daily_limit
 from threads_login import login_threads, verify_cookies, ThreadsLoginError
 from setup_logging import init_logging, get_logger
 
@@ -304,6 +304,7 @@ async def api_accounts(user: User = Depends(get_current_user), db: Session = Dep
             "id": a.id, "username": a.username, "display_name": a.display_name,
             "niche": a.niche, "active": a.active,
             "today_threads": a.today_threads, "today_replies": a.today_replies,
+            "account_tags": a.account_tags or "[]",
             "schedules_active": schedule_count,
             "created_at": a.created_at.isoformat() if a.created_at else None,
         })
@@ -470,6 +471,7 @@ async def api_account_detail(account_id: int, user: User = Depends(get_current_u
         "niche": account.niche,
         "proxy": account.proxy,
         "active": account.active,
+        "account_tags": account.account_tags or "[]",
         # targets
         "target_threads": account.target_threads,
         "target_replies": account.target_replies,
@@ -531,6 +533,13 @@ async def api_account_settings(account_id: int, request: Request, user: User = D
                    "reply_keywords", "reply_tone", "reply_length"]:
         if field in body:
             setattr(account, field, str(body[field]))
+
+    if "account_tags" in body:
+        tags = body["account_tags"]
+        if isinstance(tags, list):
+            account.account_tags = json.dumps(tags)
+        else:
+            account.account_tags = str(tags)
 
     # Plan-gated
     if plan_cfg["feature_link_promo"]:
@@ -631,6 +640,165 @@ async def api_stripe_webhook(request: Request):
             return JSONResponse({"error": str(e)}, 400)
 
     return {"ok": True}
+
+
+# ── Content Presets API ──
+
+@app.get("/api/presets")
+async def api_presets(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    presets = db.query(ContentPreset).filter(ContentPreset.user_id == user.id).order_by(ContentPreset.created_at.desc()).all()
+    return [{"id": p.id, "name": p.name, "settings": json.loads(p.settings_json or "{}"),
+             "created_at": p.created_at.isoformat() if p.created_at else None} for p in presets]
+
+@app.post("/api/presets")
+async def api_create_preset(request: Request, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    body = await request.json()
+    name = body.get("name", "").strip()
+    if not name:
+        return JSONResponse({"error": "Preset name required"}, 400)
+    settings = body.get("settings", {})
+    preset = ContentPreset(user_id=user.id, name=name, settings_json=json.dumps(settings))
+    db.add(preset)
+    db.commit()
+    return {"ok": True, "id": preset.id}
+
+@app.put("/api/presets/{preset_id}")
+async def api_update_preset(preset_id: int, request: Request, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    preset = db.query(ContentPreset).filter(ContentPreset.id == preset_id, ContentPreset.user_id == user.id).first()
+    if not preset:
+        raise HTTPException(404)
+    body = await request.json()
+    if "name" in body:
+        preset.name = body["name"].strip()
+    if "settings" in body:
+        preset.settings_json = json.dumps(body["settings"])
+    db.commit()
+    return {"ok": True}
+
+@app.delete("/api/presets/{preset_id}")
+async def api_delete_preset(preset_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    preset = db.query(ContentPreset).filter(ContentPreset.id == preset_id, ContentPreset.user_id == user.id).first()
+    if not preset:
+        raise HTTPException(404)
+    db.delete(preset)
+    db.commit()
+    return {"ok": True}
+
+@app.post("/api/presets/{preset_id}/apply/{account_id}")
+async def api_apply_preset(preset_id: int, account_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    preset = db.query(ContentPreset).filter(ContentPreset.id == preset_id, ContentPreset.user_id == user.id).first()
+    account = db.query(Account).filter(Account.id == account_id, Account.user_id == user.id).first()
+    if not preset or not account:
+        raise HTTPException(404)
+    settings = json.loads(preset.settings_json or "{}")
+    for field in ["content_style", "vibe", "post_tone", "post_length", "post_format",
+                   "topic_keywords", "avoid_topics", "links_enabled",
+                   "target_niche", "target_locations",
+                   "reply_keywords", "reply_tone", "reply_length", "viral_threshold",
+                   "target_threads", "target_replies", "max_threads", "max_replies",
+                   "sleep_hours_start", "sleep_hours_end"]:
+        if field in settings:
+            setattr(account, field, settings[field])
+    db.commit()
+    return {"ok": True, "applied_fields": list(settings.keys())}
+
+
+# ── Risk Score API ──
+
+@app.get("/api/accounts/{account_id}/risk")
+async def api_account_risk(account_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    account = db.query(Account).filter(Account.id == account_id, Account.user_id == user.id).first()
+    if not account:
+        raise HTTPException(404)
+
+    risk = 0
+    reasons = []
+
+    # Fresh accounts with high targets
+    if account.target_threads > 5:
+        risk += 15
+        reasons.append(f"High thread target ({account.target_threads}/day)")
+
+    if account.target_replies > 20:
+        risk += 15
+        reasons.append(f"High reply target ({account.target_replies}/day)")
+
+    # Fast posting
+    if account.sleep_hours_start == account.sleep_hours_end:
+        risk += 10
+        reasons.append("No sleep hours — 24/7 posting flags bots")
+
+    # Content breadth
+    if account.avoid_topics:
+        risk -= 5
+        reasons.append("Avoid topics set — good safety net")
+    else:
+        risk += 5
+        reasons.append("No blocked topics — risk of hot-button content")
+
+    # Age
+    age_days = 0
+    if account.created_at:
+        age_days = (datetime.utcnow() - account.created_at).days
+    if age_days < 3:
+        risk += 15
+        reasons.append(f"Very fresh account ({age_days or '<1'} days old)")
+    elif age_days < 14:
+        risk += 5
+
+    # Today's activity spike
+    total_today = account.today_threads + account.today_replies
+    if total_today > 25:
+        risk += 10
+        reasons.append(f"High today activity ({total_today} actions)")
+
+    # Posting without niche
+    if not account.target_niche and account.niche == "universal_usa":
+        risk += 5
+        reasons.append("No niche targeting — broad posting")
+
+    # Viral threshold too low
+    if account.viral_threshold < 10:
+        risk += 5
+        reasons.append("Very low viral threshold")
+
+    # Lockout safety
+    if account.sleep_hours_start != account.sleep_hours_end:
+        risk -= 10
+
+    risk = max(0, min(100, risk))
+
+    level = "low" if risk < 25 else "medium" if risk < 50 else "high"
+    return {
+        "score": risk,
+        "level": level,
+        "reasons": reasons,
+        "safe": risk < 50,
+    }
+
+
+# ── Batch Apply API ──
+
+@app.post("/api/accounts/batch-apply")
+async def api_batch_apply(request: Request, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    body = await request.json()
+    account_ids = body.get("account_ids", [])
+    settings = body.get("settings", {})
+    if not account_ids or not settings:
+        return JSONResponse({"error": "account_ids and settings required"}, 400)
+
+    count = 0
+    for aid in account_ids:
+        account = db.query(Account).filter(Account.id == aid, Account.user_id == user.id).first()
+        if not account:
+            continue
+        for field in settings:
+            if hasattr(account, field):
+                setattr(account, field, settings[field])
+        count += 1
+
+    db.commit()
+    return {"ok": True, "updated": count}
 
 
 # ── Scheduler Manual Trigger ──

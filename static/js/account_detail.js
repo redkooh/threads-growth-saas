@@ -176,6 +176,25 @@ function renderAccountDetailPosts(posts) {
           <span>💬 ${p.replies || 0}</span>
         </div>
       </div>
-    `).join('') : '<div class="empty">No posts yet</div>'}
+    `).join('') : '<div class="empty">No posts yet</div>'}</div>`;
+}
+
+function renderAccountDetailPresets() {
+  return `<div class="detail-section" id="dt-presets">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <span style="font-size:13px;color:#888">Saved content configurations — apply in one click</span>
+      <button class="btn btn-primary btn-sm" onclick="saveCurrentAsPreset()">💾 Save Current</button>
+    </div>
+    <div id="presetGridContainer">Loading presets...</div>
+  </div>`;
+}
+
+function renderAccountDetailTags(detail) {
+  const tags = safeParseTags(detail.account_tags || '[]');
+  return `<div class="detail-section" id="dt-tags">
+    <span style="font-size:13px;color:#888;display:block;margin-bottom:8px">Labels to organize accounts — filter and group by tag</span>
+    <div class="tag-chips">${tags.map(t => `<span class="tag-chip">${escHtml(t)} <button class="tag-del" onclick="removeTag('${escHtml(t)}')">✕</button></span>`).join('')}
+      <span class="tag-chip" style="cursor:pointer;background:rgba(168,85,247,0.2)" onclick="this.replaceWith(htmlToElements('${escHtml(renderTagInput())}'))">+ Add Tag</span>
+    </div>
   </div>`;
 }

@@ -294,8 +294,17 @@ nav .tz-badge{font-size:11px;color:#555;background:#1a1a24;padding:3px 8px;borde
   <div style="margin-bottom:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
     <button class="btn btn-primary" onclick="showAddAccount()">+ Add Account</button>
     <button class="btn btn-sm" style="background:rgba(59,130,246,0.1);color:#3b82f6;border:1px solid rgba(59,130,246,0.3)" onclick="exportCSV()">📥 Export CSV</button>
+    <button class="btn btn-sm" style="background:rgba(168,85,247,0.1);color:#a855f7;border:1px solid rgba(168,85,247,0.3)" onclick="toggleBatchMode()">📋 Batch Mode</button>
     <span style="flex:1"></span>
     <span class="last-updated" id="lastUpdated">Last updated: — <button onclick="refreshAll()">↻ Refresh</button></span>
+  </div>
+
+  <div class="batch-bar" id="batchBar" style="display:none">
+    <span style="font-size:13px;font-weight:600">📋 Batch Edit</span>
+    <span class="batch-count" id="batchCount">0 selected</span>
+    <span style="flex:1"></span>
+    <button class="btn btn-primary btn-sm" onclick="showBatchApply()">⚙️ Apply Settings</button>
+    <button class="btn-sm" style="background:transparent;border:1px solid #2a2a3a;color:#888;cursor:pointer;padding:5px 12px;border-radius:8px;font-size:12px" onclick="toggleBatchMode()">Cancel</button>
   </div>
 
   <div class="search-bar">
@@ -607,12 +616,27 @@ nav .tz-badge{font-size:11px;color:#555;background:#1a1a24;padding:3px 8px;borde
   </div>
 </div>
 
+<!-- ════ Batch Apply Modal ════ -->
+<div class="modal-overlay" id="batchModal">
+  <div class="modal-box" style="width:560px">
+    <h3>⚙️ Batch Apply Settings</h3>
+    <p>Enter settings as JSON — these will be applied to all selected accounts</p>
+    <textarea id="batchSettingsJson" class="preset-save-modal" style="width:100%;min-height:140px;padding:10px;border-radius:8px;border:1px solid #2a2a3a;background:#0f0f13;color:#e0e0e0;font-family:monospace;font-size:12px;resize:vertical;margin-bottom:12px"></textarea>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="document.getElementById('batchModal').classList.remove('show')">Cancel</button>
+      <button class="btn btn-primary" onclick="batchApply()">Apply</button>
+    </div>
+    <div class="modal-error" id="batchError"></div>
+  </div>
+</div>
+
 <script src="/static/js/core.js"></script>
 <script src="/static/js/dashboard.js"></script>
 <script src="/static/js/accounts.js"></script>
 <script src="/static/js/account_detail.js"></script>
 <script src="/static/js/settings.js"></script>
 <script src="/static/js/analytics.js"></script>
+<script src="/static/js/features.js"></script>
 <script src="/static/js/onboarding.js"></script>
 <script>
 // ── Tab switching ──

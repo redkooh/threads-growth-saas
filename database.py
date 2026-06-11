@@ -78,6 +78,9 @@ class Account(Base):
     target_niche = Column(String(200), default="")
     target_locations = Column(Text, default="")        # JSON array of target countries
 
+    # ── Account Tags ──
+    account_tags = Column(Text, default="[]")           # JSON array of tag strings ["client-1","test"]
+
     # ── Reply Strategy ──
     reply_keywords = Column(Text, default="")          # JSON array — only reply to posts with these
     reply_tone = Column(String(50), default="value_add")
@@ -114,6 +117,15 @@ class Post(Base):
     posted_at = Column(DateTime, default=datetime.utcnow)
     likes = Column(Integer, default=0)
     replies = Column(Integer, default=0)
+
+
+class ContentPreset(Base):
+    __tablename__ = "content_presets"
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    name = Column(String(100), nullable=False)
+    settings_json = Column(Text, default="{}")
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 def init_db():

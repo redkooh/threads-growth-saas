@@ -12,12 +12,14 @@ function renderAccountGrid() {
     const rPct = Math.min((a.today_replies / Math.max(a.target_replies || 1, 1)) * 100, 100);
     const tColor = tPct >= 100 ? 'green' : tPct >= 50 ? 'yellow' : 'red';
     const rColor = rPct >= 100 ? 'green' : rPct >= 50 ? 'yellow' : 'red';
-    return `<div class="acct-card ${App.selectedAccountId === a.id ? 'selected' : ''}" onclick="selectAccount(${a.id})">
+    return `<div class="acct-card ${App.selectedAccountId === a.id ? 'selected' : ''}" data-id="${a.id}" onclick="selectAccount(${a.id})">
+      <div class="batch-check" onclick="event.stopPropagation();toggleBatchSelect(${a.id})">✓</div>
       <div class="top">
         <div><div class="name">${a.display_name || a.username || 'Unnamed'}</div>
         <div class="username">@${a.username || '—'} ${a.niche ? '· ' + a.niche.replace(/_/g, ' ') : ''}</div></div>
         <span class="badge ${a.active ? 'badge-active' : 'badge-paused'}">${a.active ? 'Active' : 'Paused'}</span>
       </div>
+      ${renderCardTags(a)}
       <div class="progress-row" style="padding:2px 0">
         <span class="progress-label">🧵 Threads</span>
         <div class="progress-track"><div class="progress-fill ${tColor}" style="width:${tPct}%"></div></div>
@@ -69,6 +71,10 @@ async function selectAccount(id) {
           <button class="detail-tab" onclick="switchDetailTab(this,'audience')">🌐 Audience</button>
           <button class="detail-tab" onclick="switchDetailTab(this,'replies')">💬 Replies</button>
           <button class="detail-tab" onclick="switchDetailTab(this,'limits')">⚙️ Limits</button>
+          <button class="detail-tab" onclick="switchDetailTab(this,'presets')">💾 Presets</button>
+          <button class="detail-tab" onclick="switchDetailTab(this,'tags')">🏷️ Tags</button>
+          <button class="detail-tab" onclick="switchDetailTab(this,'risk')">🛡️ Risk</button>
+          <button class="detail-tab" onclick="switchDetailTab(this,'timeline')">🕐 Timeline</button>
           <button class="detail-tab" onclick="switchDetailTab(this,'schedules')">⏰ Schedules</button>
           <button class="detail-tab" onclick="switchDetailTab(this,'posts')">📝 Posts</button>
         </div>
@@ -78,6 +84,10 @@ async function selectAccount(id) {
         ${renderAccountDetailAudience(detail)}
         ${renderAccountDetailReplies(detail)}
         ${renderAccountDetailLimits(detail)}
+        ${renderAccountDetailPresets()}
+        ${renderAccountDetailTags(detail)}
+        <div class="detail-section" id="dt-risk"><div id="dt-risk-content">Loading risk...</div></div>
+        <div class="detail-section" id="dt-timeline">${renderTimeline(scheds)}</div>
         ${renderAccountDetailSchedules(scheds)}
         ${renderAccountDetailPosts(posts)}
       </div>`;
@@ -100,6 +110,8 @@ function switchDetailTab(btn, section) {
   document.querySelectorAll('.detail-section').forEach(s => s.classList.remove('active'));
   btn.classList.add('active');
   document.getElementById('dt-' + section).classList.add('active');
+  if (section === 'risk') loadAndRenderRisk(App.selectedAccountId);
+  if (section === 'presets') loadPresetsIntoPanel();
 }
 
 // ── Account Add ──
@@ -270,11 +282,17 @@ function toggleFilter(el, mode) {
 
 function exportCSV() {
   if (!App.accounts.length) { toast('error', 'No accounts to export'); return; }
-  let csv = 'Username,Display Name,Niche,Status,Threads Today,Replies Today\n';
-  App.accounts.forEach(a => csv += `${a.username || ''},${a.display_name || ''},${a.niche || ''},${a.active ? 'Active' : 'Paused'},${a.today_threads},${a.today_replies}\n`);
+  let csv = 'Username,Display Name,Niche,Status,Threads Today,Replies Today,Tags\n';
+  App.accounts.forEach(a => csv += `${a.username || ''},${a.display_name || ''},${a.niche || ''},${a.active ? 'Active' : 'Paused'},${a.today_threads},${a.today_replies},"${safeParseTags(a.account_tags).join('; ')}"\n`);
   const blob = new Blob([csv], { type: 'text/csv' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a'); a.href = url; a.download = 'threads_accounts.csv'; a.click();
   URL.revokeObjectURL(url);
   toast('success', 'CSV exported');
+}
+
+function renderCardTags(a) {
+  const tags = safeParseTags(a.account_tags || '[]');
+  if (!tags.length) return '';
+  return `<div style="display:flex;flex-wrap:wrap;gap:3px;margin:4px 0">${tags.map(t => `<span style="font-size:10px;padding:1px 6px;border-radius:8px;background:rgba(168,85,247,0.1);border:1px solid rgba(168,85,247,0.2);color:#c084fc">${escHtml(t)}</span>`).join('')}</div>`;
 }

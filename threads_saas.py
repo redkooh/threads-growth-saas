@@ -1,0 +1,316 @@
+"""Threads API wrapper — uses the official threads-unofficial-api library.
+
+The library uses GraphQL endpoints (same as webapp), sends all required internal
+headers (X-FB-DTSG, X-FB-LSD, X-BLOKS-Version-ID, session params), and
+auto-refreshes tokens when they expire. No more "robot detection" checkpoints.
+"""
+import json, random, os, time, sys
+import importlib
+from setup_logging import get_logger
+
+logger = get_logger(__name__)
+
+# Import the real library — use absolute import to avoid conflict with our module name
+_LIB_PATH = "/home/ubuntu/threads-growth/threads-unofficial-api"
+if _LIB_PATH not in sys.path:
+    sys.path.insert(0, _LIB_PATH)
+
+_threads_client_mod = importlib.import_module("threads.client")
+_threads_auth_mod = importlib.import_module("threads.auth")
+ThreadsClient = _threads_client_mod.ThreadsClient
+ThreadsAuth = _threads_auth_mod.ThreadsAuth
+
+USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/125.0.0.0 Safari/537.36"
+)
+
+
+class ThreadsAPIError(Exception):
+    """Raised when a Threads API call fails."""
+    pass
+
+
+def _convert_cookies(cookies_input) -> dict:
+    """Convert various cookie formats to the {name: value} dict the library expects.
+    
+    Handles both:
+    - List of {name, value} dicts (from browser export / SaaS DB)
+    - Flat {name: value} dict (from Hermes/bot sessions)
+    """
+    if isinstance(cookies_input, dict):
+        return {k: v for k, v in cookies_input.items()}
+    
+    if isinstance(cookies_input, list):
+        result = {}
+        for c in cookies_input:
+            if isinstance(c, dict) and "name" in c and "value" in c:
+                result[c["name"]] = c["value"]
+            elif isinstance(c, dict) and "key" in c and "value" in c:
+                result[c["key"]] = c["value"]
+        return result
+    
+    return {}
+
+
+def human_delay(action_type: str = "post"):
+    """Sleep a random human-like delay based on action type."""
+    delays = {
+        "post_thread": (8, 18),
+        "post_text": (4, 10),
+        "reply": (6, 16),
+        "feed_read": (2, 5),
+        "like": (3, 8),
+    }
+    lo, hi = delays.get(action_type, (4, 10))
+    secs = random.uniform(lo, hi)
+    time.sleep(secs)
+
+
+def _is_low_quality(post) -> bool:
+    """Heuristic: skip non-English, spam, hashtag-dumps, ultra-short posts."""
+    caption = ""
+    if hasattr(post, "caption"):
+        caption = (post.caption or "").strip()
+    elif isinstance(post, dict):
+        caption = (post.get("caption", "") or "").strip()
+    
+    if not caption or len(caption) < 15:
+        return True
+    
+    # More than 30% hashtags
+    hashtag_ratio = caption.count("#") / max(len(caption.split()), 1)
+    if hashtag_ratio > 0.3:
+        return True
+    
+    # Non-English heuristic
+    non_ascii = sum(1 for c in caption if ord(c) > 127)
+    if len(caption) > 20 and non_ascii / len(caption) > 0.4:
+        return True
+    
+    # Spam patterns
+    spam_patterns = ["follow for follow", "f4f", "link in bio", "check my bio", "dm me"]
+    if any(p in caption.lower() for p in spam_patterns):
+        return True
+    
+    return False
+
+
+# ── Auth ──
+
+class ThreadsAuthWrapper:
+    """Threads API auth — wraps ThreadsAuth from the official library.
+    
+    Sets THREADS_PROXY env var for proxy support (the library reads it from
+    the environment automatically).
+    
+    Usage:
+        auth = ThreadsAuthWrapper.from_cookies(cookies, proxy="...")
+        auth.post_thread("Hello world")
+        auth.get_feed(count=20)
+    """
+    
+    def __init__(self, cookies: dict, proxy: str = None):
+        # Set proxy in env so the official library picks it up
+        if proxy:
+            os.environ["THREADS_PROXY"] = proxy
+        
+        # Build auth from cookies dict
+        self.auth = ThreadsAuth.from_cookies(cookies, user_agent=USER_AGENT)
+        
+        # Refresh tokens to get fb_dtsg, lsd
+        self.auth.refresh_tokens()
+        
+        # ── Restore full browser session params if enriched ──
+        # The enrich_cookies.py script stores __session_params, __fb_dtsg,
+        # and __lsd as special cookie entries captured via Playwright.
+        # These contain __dyn, __csr, __hsdp etc that HTML parse misses.
+        restored_params = []
+        if "__session_params" in cookies:
+            try:
+                sp = json.loads(cookies["__session_params"])
+                # Merge into session_params (don't overwrite if already set)
+                for k, v in sp.items():
+                    if k not in self.auth.session_params:
+                        self.auth.session_params[k] = v
+                        restored_params.append(k)
+            except (json.JSONDecodeError, TypeError):
+                pass
+        if "__fb_dtsg" in cookies and cookies["__fb_dtsg"]:
+            self.auth.fb_dtsg = cookies["__fb_dtsg"]
+        if "__lsd" in cookies and cookies["__lsd"]:
+            self.auth.lsd = cookies["__lsd"]
+        if restored_params:
+            logger.info(f"✅ Restored browser session params: {restored_params}")
+        
+        # Create the client
+        self.client = ThreadsClient(
+            self.auth,
+            rate_limit_rps=1.0,
+            max_retries=3,
+            timeout=30.0,
+        )
+        
+        # ── PATCH: Inject lsd + session params into every REST POST ──
+        # The library's rest_post() only sends fb_dtsg + jazoest.
+        # Real browsers send: lsd + __dyn + __csr + __hsdp + __hblp + 
+        # __sjsp + __hs + __hsi + __s + __rev on EVERY request.
+        # Without these, Instagram sees an automated client.
+        _original_rest_post = self.client.http.rest_post
+        
+        def _enriched_rest_post(url, data, *, extra_headers=None):
+            # Inject lsd — critical missing param
+            if self.auth.lsd:
+                data["lsd"] = self.auth.lsd
+            # Inject all session params — these are the browser fingerprint
+            if self.auth.session_params:
+                for k, v in self.auth.session_params.items():
+                    if k not in data:
+                        data[k] = v
+            return _original_rest_post(url, data, extra_headers=extra_headers)
+        
+        self.client.http.rest_post = _enriched_rest_post
+        logger.info(f"✅ REST POST patched with session params: {list(self.auth.session_params.keys())}")
+    
+    @classmethod
+    def from_cookies(cls, cookies_input, proxy: str = None) -> "ThreadsAuthWrapper":
+        cookies = _convert_cookies(cookies_input)
+        return cls(cookies, proxy)
+    
+    def close(self):
+        """Clean up HTTP client."""
+        try:
+            self.client.http._client.close()
+        except Exception:
+            pass
+    
+    # ── Posting ──
+    
+    def post_thread(self, text: str, link: str = None) -> dict:
+        """Create a new thread (text post)."""
+        _rc_mod = importlib.import_module("threads.constants")
+        ReplyControl = _rc_mod.ReplyControl
+        try:
+            result = self.client.create_text_post(
+                caption=text,
+                reply_control=ReplyControl.EVERYONE,
+                link_attachment_url=link,
+            )
+            thread_code = getattr(result, "code", "")
+            thread_id = getattr(result, "pk", "")
+            logger.info(f"Thread posted: {thread_code[:20]}")
+            human_delay("post_thread")
+            return {"thread_code": thread_code, "thread_id": thread_id}
+        except Exception as e:
+            raise ThreadsAPIError(f"Post failed: {e}")
+    
+    def post_reply(self, parent_thread_code: str, text: str) -> dict:
+        """Reply to an existing thread."""
+        try:
+            result = self.client.reply(post_id=parent_thread_code, text=text)
+            thread_code = getattr(result, "code", "")
+            logger.info(f"Reply posted to {parent_thread_code[:20]}: {thread_code[:20]}")
+            human_delay("reply")
+            return {"thread_code": thread_code}
+        except Exception as e:
+            raise ThreadsAPIError(f"Reply failed: {e}")
+    
+    # ── Feed ──
+    
+    def get_feed(self, count: int = 15) -> list:
+        """Get the For You feed with humanized delay."""
+        try:
+            feed_page = self.client.get_feed()
+            posts = list(feed_page.posts)[:count]
+            logger.info(f"Feed: got {len(posts)} posts")
+            human_delay("feed_read")
+            
+            result = []
+            for p in posts:
+                result.append({
+                    "thread_code": getattr(p, "code", ""),
+                    "pk": getattr(p, "pk", ""),
+                    "id": getattr(p, "id", ""),
+                    "username": getattr(p.user, "username", "") if hasattr(p, "user") else "",
+                    "user_id": getattr(p.user, "pk", "") if hasattr(p, "user") else "",
+                    "caption": (getattr(p, "caption", "") or ""),
+                    "like_count": getattr(p, "like_count", 0),
+                    "reply_count": getattr(p, "reply_count", 0),
+                    "taken_at": getattr(p, "taken_at", 0),
+                })
+            return result
+        except Exception as e:
+            logger.warning(f"Feed fetch failed: {e}")
+            return []
+    
+    def find_reply_targets(self, count: int = 15, min_likes: int = 0) -> list:
+        """Get feed posts, filter quality, return sorted by engagement."""
+        feed = self.get_feed(count=count)
+        targets = []
+        seen_codes = set()
+        
+        for post in feed:
+            code = post.get("thread_code", "")
+            if not code or code in seen_codes:
+                continue
+            if min_likes > 0 and post.get("like_count", 0) < min_likes:
+                continue
+            
+            seen_codes.add(code)
+            targets.append({
+                "thread_code": code,
+                "pk": post.get("pk", ""),
+                "username": post.get("username", ""),
+                "caption": (post.get("caption", "") or "")[:300],
+                "like_count": post.get("like_count", 0),
+                "reply_count": post.get("reply_count", 0),
+            })
+        
+        # Sort by engagement score
+        targets.sort(key=lambda t: t["like_count"] + t["reply_count"] * 2, reverse=True)
+        return targets[:count]
+    
+    def search_posts(self, query: str, count: int = 20) -> list:
+        """Search Threads posts by keyword."""
+        try:
+            results = self.client.search_posts(query)
+            posts = []
+            for p in results[:count]:
+                posts.append({
+                    "thread_code": getattr(p, "code", ""),
+                    "username": getattr(p.user, "username", "") if hasattr(p, "user") else "",
+                    "caption": (getattr(p, "caption", "") or "")[:300],
+                    "like_count": getattr(p, "like_count", 0),
+                    "reply_count": getattr(p, "reply_count", 0),
+                })
+            human_delay("feed_read")
+            return posts
+        except Exception as e:
+            logger.warning(f"Search failed: {e}")
+            return []
+    
+    # ── Stats ──
+    
+    def get_post_stats(self, thread_code: str) -> dict:
+        """Get like/reply counts for a thread we posted."""
+        try:
+            post = self.client.get_post(thread_code)
+            if post and post.post:
+                p = post.post
+                return {
+                    "likes": getattr(p, "like_count", 0),
+                    "replies": getattr(p, "reply_count", 0),
+                    "thread_code": thread_code,
+                }
+        except Exception as e:
+            logger.warning(f"Stats fetch failed for {thread_code}: {e}")
+        return {"likes": 0, "replies": 0, "thread_code": thread_code}
+    
+    def health_check(self) -> bool:
+        """Verify auth is still valid."""
+        try:
+            self.auth.check_and_warn()
+            return self.auth.is_valid()
+        except Exception:
+            return False
