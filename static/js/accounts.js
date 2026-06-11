@@ -50,6 +50,7 @@ async function selectAccount(id) {
           <div><div class="name">${detail.display_name || detail.username || 'Unnamed'}</div>
           <div class="username">@${detail.username || '—'} · ${detail.niche || 'universal_usa'}</div></div>
           <div class="detail-actions">
+            <button class="btn btn-primary btn-sm" onclick="runAccountNow(${id})">▶️ Run Now</button>
             <button class="btn btn-primary btn-sm" onclick="toggleAccount(${id})">${detail.active ? '⏸ Pause' : '▶ Activate'}</button>
             <button class="btn btn-danger btn-sm" onclick="showDeleteAccount(${id})">🗑 Delete</button>
           </div>
@@ -228,6 +229,24 @@ async function refreshAccounts() {
     if (exists) selectAccount(App.selectedAccountId);
     else { App.selectedAccountId = null; document.getElementById('detailPanel').innerHTML = '<div class="empty">Select an account to view details</div>'; }
   }
+}
+
+// ── Run Now ──
+
+async function runAccountNow(id) {
+  const btn = event.target;
+  btn.textContent = '⏳ Running...';
+  btn.disabled = true;
+  try {
+    const r = await api(`/api/scheduler/run-now/${id}`, { method: 'POST' });
+    toast('success', `Run triggered — ${r.slots_triggered} slot(s)`);
+    // Refresh after a few seconds so results show
+    setTimeout(() => refreshAccounts(), 3000);
+  } catch (e) {
+    toast('error', e.message || 'Failed to run scheduler');
+  }
+  btn.textContent = '▶️ Run Now';
+  btn.disabled = false;
 }
 
 // ── Filter ──

@@ -256,28 +256,48 @@ async def scheduler_loop():
 
 
 async def run_account_now(account_id: int):
-    """Manually trigger all enabled schedules for an account — regardless of hour."""
+    """Manually trigger a single slot run for an account — regardless of hour."""
     db = SessionLocal()
     try:
         account = db.query(Account).filter(Account.id == account_id).first()
         if not account:
+            db.close()
             return {"error": "Account not found"}
 
+        # Temporarily set a schedule to the current hour (in-memory only)
+        current_hour = _utc_hour()
         schedules = (
             db.query(Schedule)
             .filter(Schedule.account_id == account_id, Schedule.enabled == True)
             .all()
         )
 
-        results = []
-        for sched in schedules[:3]:
-            sched.hour_utc = _utc_hour()
-            db.commit()
-            results.append({"slot": sched.slot_name, "triggered": True})
+        if not schedules:
+            db.close()
+            return {"error": "No enabled schedules for this account"}
 
+        # Pick the first enabled schedule, fake its hour_utc in memory
+        sched = schedules[0]
+        original_hour = sched.hour_utc
+        sched.hour_utc = current_hour
+
+        results = [{"slot": sched.slot_name, "triggered": True}]
+        db.flush()
         db.close()
+
         await run_scheduler()
-        return {"ok": True, "slots_triggered": len(results), "results": results}
+
+        # Restore original hour after run
+        db2 = SessionLocal()
+        try:
+            restored = db2.query(Schedule).filter(Schedule.id == sched.id).first()
+            if restored:
+                restored.hour_utc = original_hour
+                db2.commit()
+        finally:
+            db2.close()
+
+        return {"ok": True, "slots_triggered": 1, "results": results}
     except Exception as e:
         db.close()
         logger.error(f"Manual run failed for account {account_id}: {e}")
