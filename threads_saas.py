@@ -151,27 +151,7 @@ class ThreadsAuthWrapper:
             max_retries=3,
             timeout=30.0,
         )
-        
-        # ── PATCH: Inject lsd + session params into every REST POST ──
-        # The library's rest_post() only sends fb_dtsg + jazoest.
-        # Real browsers send: lsd + __dyn + __csr + __hsdp + __hblp + 
-        # __sjsp + __hs + __hsi + __s + __rev on EVERY request.
-        # Without these, Instagram sees an automated client.
-        _original_rest_post = self.client.http.rest_post
-        
-        def _enriched_rest_post(url, data, *, extra_headers=None):
-            # Inject lsd — critical missing param
-            if self.auth.lsd:
-                data["lsd"] = self.auth.lsd
-            # Inject all session params — these are the browser fingerprint
-            if self.auth.session_params:
-                for k, v in self.auth.session_params.items():
-                    if k not in data:
-                        data[k] = v
-            return _original_rest_post(url, data, extra_headers=extra_headers)
-        
-        self.client.http.rest_post = _enriched_rest_post
-        logger.info(f"✅ REST POST patched with session params: {list(self.auth.session_params.keys())}")
+        logger.info(f"✅ Auth ready: session_params={list(self.auth.session_params.keys())}")
     
     @classmethod
     def from_cookies(cls, cookies_input, proxy: str = None) -> "ThreadsAuthWrapper":
