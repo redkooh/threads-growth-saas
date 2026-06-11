@@ -101,6 +101,28 @@ async def run_scheduler():
             try:
                 from threads_saas import ThreadsAuthWrapper
                 auth = ThreadsAuthWrapper.from_cookies(cookies, proxy=proxy)
+                
+                # ── One-time browser fingerprint enrichment ──
+                # HTML-only refresh_tokens() misses __dyn, __csr, __hsdp, etc.
+                # On first run, launch Playwright once to capture the full fingerprint.
+                if not auth.auth.session_params or "__dyn" not in auth.auth.session_params:
+                    logger.info(f"Account {account.id}: enriching browser fingerprint (one-time)...")
+                    try:
+                        if auth.auth.refresh_from_browser(headless=True, timeout_ms=45000):
+                            # Save enriched params back to DB so future runs skip Playwright
+                            enriched = json.loads(account.cookies_encrypted or "[]")
+                            # Remove old enrichment keys if any
+                            enriched = [c for c in enriched if isinstance(c, dict) and not c.get("name", "").startswith("__")]
+                            enriched.append({"name": "__session_params", "value": json.dumps(auth.auth.session_params)})
+                            enriched.append({"name": "__fb_dtsg", "value": auth.auth.fb_dtsg or ""})
+                            enriched.append({"name": "__lsd", "value": auth.auth.lsd or ""})
+                            account.cookies_encrypted = json.dumps(enriched)
+                            db.commit()
+                            logger.info(f"Account {account.id}: fingerprint enriched and saved ✅")
+                        else:
+                            logger.warning(f"Account {account.id}: browser refresh returned False")
+                    except Exception as e:
+                        logger.warning(f"Account {account.id}: browser refresh failed ({type(e).__name__}), continuing with HTML fingerprint")
             except Exception as e:
                 logger.error(f"Account {account.id} auth failed: {e}")
                 sched.last_status = f"auth_error"

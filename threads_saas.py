@@ -119,7 +119,7 @@ class ThreadsAuthWrapper:
         # Build auth from cookies dict
         self.auth = ThreadsAuth.from_cookies(cookies, user_agent=USER_AGENT)
         
-        # Refresh tokens to get fb_dtsg, lsd
+        # Step 1: Lightweight token refresh (fb_dtsg, lsd)
         self.auth.refresh_tokens()
         
         # ── Restore full browser session params if enriched ──
