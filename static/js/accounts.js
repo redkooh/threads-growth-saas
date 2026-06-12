@@ -315,13 +315,47 @@ function renderAdvancedTab(detail) {
       <div style="font-size:11px;color:#666;margin:0 0 8px">📍 Location is controlled by proxy — pick the right country when connecting</div>
     </div>
     <div class="advanced-sub" id="ad-style">
-      <div style="margin-bottom:10px;font-size:12px;color:#aaa;line-height:1.5">AI can read your existing Threads posts and learn your unique style — tone, vocabulary, emoji habits, sentence structure. Posts will sound like YOU, not generic AI.</div>
+      <div style="margin-bottom:10px;font-size:12px;color:#aaa;line-height:1.5">AI reads your Threads posts and writes like YOU — tone, slang, emoji habits, everything. Keep upgrading as your voice evolves.</div>
       <div id="styleStatus">
         ${detail.writing_style ? `<div style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);border-radius:8px;padding:10px 12px;font-size:12px;color:#22c55e;margin-bottom:10px">✅ Style learned</div>` : '<div style="background:rgba(168,85,247,0.06);border:1px solid rgba(168,85,247,0.15);border-radius:8px;padding:10px 12px;font-size:12px;color:#a855f7;margin-bottom:10px">🤖 Not yet learned — click below to analyze your last 70 posts</div>'}
       </div>
-      <button class="btn btn-primary btn-sm" onclick="learnStyle(${detail.id})">🧠 Learn My Style</button>
-      <div id="styleResult" style="margin-top:10px;font-size:12px;color:#888"></div>
-      ${detail.writing_style ? `<div style="margin-top:12px;background:#0f0f13;border:1px solid #222234;border-radius:8px;padding:10px;font-size:12px;color:#aaa;line-height:1.6;max-height:200px;overflow-y:auto">${escHtml(detail.writing_style)}</div>` : ''}
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+        <button class="btn btn-primary btn-sm" onclick="learnStyle(${detail.id})">🧠 ${detail.writing_style ? 'Re-learn' : 'Learn My Style'}</button>
+        ${detail.writing_style ? `<button class="btn btn-primary btn-sm" onclick="showUpgradeStyle(${detail.id})">⬆️ Upgrade</button>` : ''}
+        ${detail.writing_style ? `<button class="btn btn-primary btn-sm" onclick="toggleStyleEdit(${detail.id})">✏️ Edit</button>` : ''}
+      </div>
+      <div id="styleResult" style="font-size:12px;color:#888;margin-bottom:8px"></div>
+
+      <!-- Upgrade panel (hidden) -->
+      <div id="styleUpgradePanel" style="display:none;background:#12121a;border:1px solid #2a2a3a;border-radius:10px;padding:12px;margin-bottom:10px">
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px">⬆️ Upgrade Your Style</div>
+        <div style="font-size:12px;color:#aaa;margin-bottom:10px;line-height:1.5">Tell the AI how you want to evolve your voice. Pick a direction or write your own:</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px" id="upgradePresets">
+          <button class="filter-chip" onclick="setUpgradeDir(this,'Make it funnier and more casual')">😂 Funnier</button>
+          <button class="filter-chip" onclick="setUpgradeDir(this,'Make it more professional and authoritative')">💼 Professional</button>
+          <button class="filter-chip" onclick="setUpgradeDir(this,'More hot takes — spicier, controversial')">🌶️ Spicier</button>
+          <button class="filter-chip" onclick="setUpgradeDir(this,'Shorter punchier lines, less text')">✂️ Shorter</button>
+          <button class="filter-chip" onclick="setUpgradeDir(this,'More emojis and visual style')">😎 More emoji</button>
+          <button class="filter-chip" onclick="setUpgradeDir(this,'Warmer and more inspirational')">✨ Inspirational</button>
+        </div>
+        <textarea id="upgradeCustomDir" placeholder="Or write your own direction..." style="width:100%;padding:8px;border-radius:8px;border:1px solid #2a2a3a;background:#0f0f13;color:#e0e0e0;font-size:12px;min-height:50px;resize:vertical;outline:none;margin-bottom:8px"></textarea>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-primary btn-sm" onclick="upgradeStyle(${detail.id})">⬆️ Upgrade</button>
+          <button class="btn btn-sm" onclick="hideUpgradeStyle()" style="border:1px solid #2a2a3a;background:transparent;color:#888">Cancel</button>
+        </div>
+        <div id="upgradeResult" style="margin-top:8px;font-size:12px;color:#888"></div>
+      </div>
+
+      <!-- Style textarea (editable) -->
+      <div id="styleEditContainer" style="display:none;margin-bottom:10px">
+        <textarea id="styleEditText" style="width:100%;padding:8px;border-radius:8px;border:1px solid #2a2a3a;background:#0f0f13;color:#e0e0e0;font-size:12px;min-height:120px;resize:vertical;outline:none;font-family:monospace">${escHtml(detail.writing_style || '')}</textarea>
+        <div style="display:flex;gap:6px;margin-top:6px">
+          <button class="btn btn-primary btn-sm" onclick="saveStyleEdit(${detail.id})">💾 Save</button>
+          <button class="btn btn-sm" onclick="toggleStyleEdit(${detail.id})" style="border:1px solid #2a2a3a;background:transparent;color:#888">Cancel</button>
+        </div>
+      </div>
+
+      ${detail.writing_style ? `<div id="stylePreviewBox" style="margin-top:12px;background:#0f0f13;border:1px solid #222234;border-radius:8px;padding:10px;font-size:12px;color:#aaa;line-height:1.6;max-height:200px;overflow-y:auto">${escHtml(detail.writing_style)}</div>` : ''}
     </div>
     <div class="advanced-sub" id="ad-replies">
       <div style="font-size:11px;color:#a855f7;margin:0 0 8px;padding:6px 8px;background:rgba(168,85,247,0.06);border-radius:6px;border-left:3px solid #a855f7">🤖 AI picks reply style and length automatically — change anytime</div>
@@ -545,5 +579,57 @@ async function learnStyle(aid) {
     }
   } catch(e) {
     resultEl.innerHTML = `<span style="color:#ef4444">Failed: ${e.message}</span>`;
+  }
+}
+
+// ── Style Upgrade ──
+function showUpgradeStyle() {
+  document.getElementById('styleUpgradePanel').style.display = 'block';
+}
+function hideUpgradeStyle() {
+  document.getElementById('styleUpgradePanel').style.display = 'none';
+  document.getElementById('upgradeResult').innerHTML = '';
+  document.querySelectorAll('#upgradePresets .filter-chip').forEach(c => c.classList.remove('active'));
+  document.getElementById('upgradeCustomDir').value = '';
+}
+function setUpgradeDir(btn, dir) {
+  document.querySelectorAll('#upgradePresets .filter-chip').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('upgradeCustomDir').value = dir;
+}
+async function upgradeStyle(aid) {
+  const dir = document.getElementById('upgradeCustomDir').value.trim();
+  if (!dir) { toast('info', 'Pick a direction or write one'); return; }
+  const el = document.getElementById('upgradeResult');
+  el.innerHTML = '🧠 Upgrading style...';
+  try {
+    const res = await api(`/api/accounts/${aid}/upgrade-style`, { method: 'POST', body: JSON.stringify({ direction: dir }) });
+    if (res.style) {
+      el.innerHTML = `<span style="color:#22c55e">✅ Upgraded!</span>`;
+      document.getElementById('stylePreviewBox').textContent = res.style;
+      document.getElementById('styleEditText').value = res.style;
+      hideUpgradeStyle();
+    } else {
+      el.innerHTML = res.message || 'Upgrade failed';
+    }
+  } catch(e) {
+    el.innerHTML = `<span style="color:#ef4444">${e.message}</span>`;
+  }
+}
+
+// ── Style Edit ──
+function toggleStyleEdit() {
+  const c = document.getElementById('styleEditContainer');
+  c.style.display = c.style.display === 'none' ? 'block' : 'none';
+}
+async function saveStyleEdit(aid) {
+  const text = document.getElementById('styleEditText').value.trim();
+  if (!text) { toast('info', 'Style can\'t be empty'); return; }
+  try {
+    await api(`/api/accounts/${aid}/update-style`, { method: 'POST', body: JSON.stringify({ style: text }) });
+    toast('success', 'Style saved');
+    refreshAccounts();
+  } catch(e) {
+    toast('error', e.message);
   }
 }

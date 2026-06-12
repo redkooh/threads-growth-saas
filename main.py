@@ -441,6 +441,58 @@ async def api_learn_and_go(account_id: int, user: User = Depends(get_current_use
         return {"ok": True, "style": "", "posts_analyzed": 0, "message": "Not enough posts yet"}
 
 
+@app.post("/api/accounts/{account_id}/upgrade-style")
+async def api_upgrade_style(account_id: int, request: Request, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Upgrade an existing writing style by giving the AI an evolution direction."""
+    from ai import STYLE_ANALYSIS_SYSTEM
+    account = db.query(Account).filter(Account.id == account_id, Account.user_id == user.id).first()
+    if not account:
+        raise HTTPException(404)
+
+    body = await request.json()
+    direction = body.get("direction", "").strip()
+    if not direction:
+        return JSONResponse({"ok": True, "style": account.writing_style, "message": "No direction given"}, 200)
+
+    current_style = account.writing_style or ""
+
+    prompt = f"""Current writing style signature:
+{current_style}
+
+Evolution direction requested by user:
+{direction}
+
+Rewrite the style signature to incorporate this evolution. Keep the same format and depth (3-4 paragraphs). The user's current style is the foundation — evolve it, don't replace it entirely. Be specific about how the new direction changes the voice.
+
+New style signature:"""
+
+    from ai import _call_ai
+    messages = [
+        {"role": "system", "content": STYLE_ANALYSIS_SYSTEM},
+        {"role": "user", "content": prompt},
+    ]
+    try:
+        new_style = _call_ai(messages, max_tokens=600)
+        account.writing_style = new_style
+        db.commit()
+        logger.info(f"✅ Upgraded style for @{account.username}: {direction}")
+        return {"ok": True, "style": new_style}
+    except Exception as e:
+        return JSONResponse({"error": f"Upgrade failed: {str(e)}"}, 500)
+
+
+@app.post("/api/accounts/{account_id}/update-style")
+async def api_update_style(account_id: int, request: Request, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Manually set the writing style (edit)."""
+    account = db.query(Account).filter(Account.id == account_id, Account.user_id == user.id).first()
+    if not account:
+        raise HTTPException(404)
+    body = await request.json()
+    account.writing_style = body.get("style", "")
+    db.commit()
+    return {"ok": True}
+
+
 # ── Schedules API ──
 
 # ── Schedules API ──
