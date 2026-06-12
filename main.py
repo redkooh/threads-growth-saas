@@ -42,6 +42,7 @@ from sqlalchemy import func, extract
 from database import User, Account, Schedule, Post, ContentPreset, init_db, get_db, get_account_limit, get_daily_limit
 from threads_login import login_threads, verify_cookies, ThreadsLoginError
 from setup_logging import init_logging, get_logger
+from ai import generate_thread, generate_reply, generate_fun_fact, learn_writing_style
 
 logger = get_logger(__name__)
 
@@ -375,6 +376,71 @@ async def api_toggle_account(account_id: int, user: User = Depends(get_current_u
     return {"active": account.active}
 
 
+@app.post("/api/accounts/{account_id}/learn-style")
+async def api_learn_style(account_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Fetch the account's last 70 posts and learn writing style from them."""
+    from threads_saas import ThreadsAuthWrapper
+    account = db.query(Account).filter(Account.id == account_id, Account.user_id == user.id).first()
+    if not account:
+        raise HTTPException(404)
+
+    try:
+        cookies = json.loads(account.cookies_encrypted) if account.cookies_encrypted else {}
+        if isinstance(cookies, list):
+            cookies = {c["name"]: c["value"] for c in cookies if "name" in c and "value" in c}
+        auth = ThreadsAuthWrapper.from_cookies(cookies, proxy=account.proxy or None)
+        posts = auth.get_user_posts(count=70)
+        auth.close()
+    except Exception as e:
+        return JSONResponse({"error": f"Failed to fetch posts: {str(e)}"}, 500)
+
+    if not posts or len(posts) < 5:
+        return JSONResponse({"ok": True, "style": "", "message": "Not enough posts found to learn style (need 5+)"}, 200)
+
+    style = learn_writing_style(posts)
+    account.writing_style = style
+    db.commit()
+
+    return {"ok": True, "style": style, "posts_analyzed": len(posts)}
+
+
+@app.get("/api/accounts/{account_id}/style")
+async def api_get_style(account_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Get the learned writing style for an account."""
+    account = db.query(Account).filter(Account.id == account_id, Account.user_id == user.id).first()
+    if not account:
+        raise HTTPException(404)
+    return {"style": account.writing_style or ""}
+
+
+@app.post("/api/accounts/{account_id}/learn-and-go")
+async def api_learn_and_go(account_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Quick one-shot: login, learn style, save — called right after account creation."""
+    from threads_saas import ThreadsAuthWrapper
+    account = db.query(Account).filter(Account.id == account_id, Account.user_id == user.id).first()
+    if not account:
+        raise HTTPException(404)
+
+    try:
+        cookies = json.loads(account.cookies_encrypted) if account.cookies_encrypted else {}
+        if isinstance(cookies, list):
+            cookies = {c["name"]: c["value"] for c in cookies if "name" in c and "value" in c}
+        auth = ThreadsAuthWrapper.from_cookies(cookies, proxy=account.proxy or None)
+        posts = auth.get_user_posts(count=70)
+        auth.close()
+    except Exception as e:
+        return JSONResponse({"ok": True, "style": "", "message": f"Style learning deferred: {str(e)}"}, 200)
+
+    if posts and len(posts) >= 5:
+        style = learn_writing_style(posts)
+        account.writing_style = style
+        db.commit()
+        logger.info(f"✅ Learned writing style for @{account.username} ({len(posts)} posts analyzed)")
+        return {"ok": True, "style": style, "posts_analyzed": len(posts)}
+    else:
+        return {"ok": True, "style": "", "posts_analyzed": 0, "message": "Not enough posts yet"}
+
+
 # ── Schedules API ──
 
 # ── Schedules API ──
@@ -541,6 +607,8 @@ async def api_account_detail(account_id: int, user: User = Depends(get_current_u
         "topic_keywords": account.topic_keywords,
         "avoid_topics": account.avoid_topics,
         "links_enabled": account.links_enabled,
+        # style learning
+        "writing_style": account.writing_style or "",
         # audience
         "target_niche": account.target_niche,
         "target_follower_min": account.target_follower_min,

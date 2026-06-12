@@ -293,6 +293,7 @@ function renderAdvancedTab(detail) {
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
       <button class="filter-chip active" onclick="switchAdvancedSub(this,'audience')">🌐 Audience</button>
       <button class="filter-chip" onclick="switchAdvancedSub(this,'replies')">💬 Replies</button>
+      <button class="filter-chip" onclick="switchAdvancedSub(this,'style')">🎨 Style</button>
       <button class="filter-chip" onclick="switchAdvancedSub(this,'presets')">💾 Presets</button>
       <button class="filter-chip" onclick="switchAdvancedSub(this,'timeline')">🕐 Timeline</button>
     </div>
@@ -312,6 +313,15 @@ function renderAdvancedTab(detail) {
         }).join('')}
       </div>
       <div style="font-size:11px;color:#666;margin:0 0 8px">📍 Location is controlled by proxy — pick the right country when connecting</div>
+    </div>
+    <div class="advanced-sub" id="ad-style">
+      <div style="margin-bottom:10px;font-size:12px;color:#aaa;line-height:1.5">AI can read your existing Threads posts and learn your unique style — tone, vocabulary, emoji habits, sentence structure. Posts will sound like YOU, not generic AI.</div>
+      <div id="styleStatus">
+        ${detail.writing_style ? `<div style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);border-radius:8px;padding:10px 12px;font-size:12px;color:#22c55e;margin-bottom:10px">✅ Style learned</div>` : '<div style="background:rgba(168,85,247,0.06);border:1px solid rgba(168,85,247,0.15);border-radius:8px;padding:10px 12px;font-size:12px;color:#a855f7;margin-bottom:10px">🤖 Not yet learned — click below to analyze your last 70 posts</div>'}
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="learnStyle(${detail.id})">🧠 Learn My Style</button>
+      <div id="styleResult" style="margin-top:10px;font-size:12px;color:#888"></div>
+      ${detail.writing_style ? `<div style="margin-top:12px;background:#0f0f13;border:1px solid #222234;border-radius:8px;padding:10px;font-size:12px;color:#aaa;line-height:1.6;max-height:200px;overflow-y:auto">${escHtml(detail.writing_style)}</div>` : ''}
     </div>
     <div class="advanced-sub" id="ad-replies">
       <div style="font-size:11px;color:#a855f7;margin:0 0 8px;padding:6px 8px;background:rgba(168,85,247,0.06);border-radius:6px;border-left:3px solid #a855f7">🤖 AI picks reply style and length automatically — change anytime</div>
@@ -442,6 +452,8 @@ function saveAccount() {
       App.accounts = accts; renderAccountGrid();
       const a = accts[accts.length-1];
       if (a) { App.selectedAccountId = a.id; setTimeout(() => openSetupWizard(a.id), 500); }
+      // Fire-and-forget: learn writing style in background
+      api(`/api/accounts/${a.id}/learn-and-go`, { method: 'POST' }).catch(()=>{});
     })
     .catch(e => { errEl.textContent=e.message; errEl.style.display='block'; })
     .finally(() => { btn.textContent='Connect Account'; btn.disabled=false; });
@@ -514,4 +526,24 @@ async function addScheduleSlot(aid, hour) {
     await api(`/api/accounts/${aid}/schedules`,{method:'POST',body:JSON.stringify({hour_utc:hour,slot_name:`slot-${hour}`})});
     toast('success',`Added ${toLocalTime(hour)}`); refreshAccounts();
   } catch(e) { toast('error',e.message); }
+}
+
+// ── Style Learning ──
+async function learnStyle(aid) {
+  const resultEl = document.getElementById('styleResult');
+  const statusEl = document.getElementById('styleStatus');
+  resultEl.innerHTML = '🧠 Analyzing your last 70 posts... this takes a moment';
+  try {
+    const res = await api(`/api/accounts/${aid}/learn-style`, { method: 'POST' });
+    if (res.style) {
+      resultEl.innerHTML = `<span style="color:#22c55e">✅ Learned! ${res.posts_analyzed} posts analyzed</span>`;
+      statusEl.innerHTML = '<div style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);border-radius:8px;padding:10px 12px;font-size:12px;color:#22c55e;margin-bottom:10px">✅ Style learned</div>';
+      // Refresh detail to show the style text
+      refreshAccounts();
+    } else {
+      resultEl.innerHTML = res.message || 'Not enough posts with content (need 5+)';
+    }
+  } catch(e) {
+    resultEl.innerHTML = `<span style="color:#ef4444">Failed: ${e.message}</span>`;
+  }
 }

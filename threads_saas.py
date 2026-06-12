@@ -224,6 +224,32 @@ class ThreadsAuthWrapper:
             logger.warning(f"Feed fetch failed: {e}")
             return []
     
+    def get_user_posts(self, count: int = 70) -> list:
+        """Fetch the authenticated user's own recent posts for style learning."""
+        try:
+            user_id = self.auth.user_id
+            if not user_id:
+                logger.warning("No user_id available for profile fetch")
+                return []
+            profile_page = self.client.get_profile(user_id, first=count)
+            posts = list(profile_page.posts)[:count]
+            logger.info(f"Profile: got {len(posts)} own posts")
+            human_delay("feed_read")
+            result = []
+            for p in posts:
+                caption = (getattr(p, "caption", "") or "").strip()
+                if len(caption) < 20:
+                    continue
+                result.append({
+                    "caption": caption,
+                    "like_count": getattr(p, "like_count", 0),
+                    "reply_count": getattr(p, "reply_count", 0),
+                })
+            return result
+        except Exception as e:
+            logger.warning(f"Profile fetch failed: {e}")
+            return []
+    
     def find_reply_targets(self, count: int = 15, min_likes: int = 0) -> list:
         """Get feed posts, filter quality, return sorted by engagement."""
         feed = self.get_feed(count=count)

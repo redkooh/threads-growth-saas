@@ -74,6 +74,9 @@ class Account(Base):
     avoid_topics = Column(Text, default="")            # JSON array of topics to NEVER post
     links_enabled = Column(Boolean, default=False)
 
+    # ── Learned Writing Style ──
+    writing_style = Column(Text, default="")              # AI-generated style signature learned from user's posts
+
     # ── Audience Targeting ──
     target_niche = Column(String(200), default="")
     target_locations = Column(Text, default="")        # JSON array of target countries

@@ -247,6 +247,7 @@ def generate_thread(
     )
 
     system = SYSTEM_THREAD.format(max_chars=max_chars)
+    system = inject_style(system, account.writing_style or "")
     messages = _build_chat_messages(system, prompt)
     content = _call_ai(messages)
     logger.info(f"Generated thread ({post_len}, {len(content)} chars)")
@@ -290,7 +291,8 @@ def generate_reply(
         keywords=keywords,
     )
 
-    messages = _build_chat_messages(SYSTEM_REPLY, prompt)
+    system = inject_style(SYSTEM_REPLY, account.writing_style or "")
+    messages = _build_chat_messages(system, prompt)
     content = _call_ai(messages, max_tokens=max_tokens)
     logger.info(f"Generated reply to @{target_username} ({len(content)} chars)")
     return content
@@ -314,9 +316,75 @@ def generate_fun_fact(account, feed_posts: list = None) -> str:
     )
 
     messages = _build_chat_messages(
-        SYSTEM_THREAD.format(max_chars=500),
+        inject_style(SYSTEM_THREAD.format(max_chars=500), account.writing_style or ""),
         prompt,
     )
     content = _call_ai(messages, max_tokens=384)
     logger.info(f"Generated fun-fact ({len(content)} chars)")
     return content
+
+
+# ── Style Learning ──
+
+STYLE_ANALYSIS_SYSTEM = "You analyze a user's Threads posts and extract their unique writing style signature. Be specific and actionable — quote patterns, mention specific punctuation habits, emoji placement, sentence structure. Keep it under 400 words. Output only the style profile, no labels."
+
+STYLE_ANALYSIS_PROMPT = """Analyze these {count} Threads posts from the same user and extract their writing style signature.
+
+For each dimension, be SPECIFIC — reference actual patterns from their posts:
+
+1. Tone & Voice — Sarcastic? Inspirational? Blunt? Friendly? Baseline energy?
+2. Sentence Structure — Short punchy lines? Run-on? Paragraphs? One-liners?
+3. Punctuation & Capitalization — All lowercase? No periods? Ellipsis ... or em-dash —? Caps for emphasis?
+4. Emoji Usage — Which emojis? Start/mid/end? How many per post?
+5. Vocabulary & Slang — Repeated words/phrases ("honestly", "unpopular opinion", "hot take")? Dialect markers?
+6. Hooks & Openers — How do they start? Questions? Statements? "Hot take:"? Quotes?
+7. Structure — Line breaks? Thread format (1/n)? Dots? Lists?
+8. Engagement Patterns — What gets the most likes/replies? Long thoughtful or short hot takes?
+
+POSTS (highest engagement first):
+{posts}
+
+Output a complete writing style signature in 3-4 paragraphs. Be specific."""
+
+
+def learn_writing_style(posts: list) -> str:
+    """Analyze a user's own posts and return a style signature."""
+    if not posts or len(posts) < 5:
+        return ""
+
+    # Sort by engagement
+    sorted_posts = sorted(posts, key=lambda p: p.get("like_count", 0) + p.get("reply_count", 0), reverse=True)
+
+    # Format posts for analysis
+    lines = []
+    for i, p in enumerate(sorted_posts[:70], 1):
+        caption = p.get("caption", "")[:500]
+        likes = p.get("like_count", 0)
+        replies = p.get("reply_count", 0)
+        lines.append(f"[Post {i}] (❤️{likes} 💬{replies})\n{caption}\n")
+
+    posts_text = "\n---\n".join(lines)
+    prompt = STYLE_ANALYSIS_PROMPT.format(count=len(sorted_posts[:70]), posts=posts_text)
+
+    messages = [
+        {"role": "system", "content": STYLE_ANALYSIS_SYSTEM},
+        {"role": "user", "content": prompt},
+    ]
+
+    try:
+        style = _call_ai(messages, max_tokens=600)
+        logger.info(f"Learned writing style ({len(style)} chars)")
+        return style
+    except Exception as e:
+        logger.warning(f"Style learning failed: {e}")
+        return ""
+
+
+def inject_style(system_prompt: str, style: str) -> str:
+    """Inject a learned writing style into a system prompt."""
+    if not style:
+        return system_prompt
+    return system_prompt.replace(
+        "Write like a real person, not a bot.",
+        f"Write like a real person, not a bot. MATCH THIS USER'S WRITING STYLE:\n{style}",
+    )
