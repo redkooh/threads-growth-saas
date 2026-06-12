@@ -1,6 +1,17 @@
 """SaaS App — Multi-Tenant Threads Growth Manager"""
 import json, os, sys, secrets, hashlib, asyncio
 from pathlib import Path
+
+# Load .env before anything else
+_ENV_PATH = Path(__file__).parent / ".env"
+if _ENV_PATH.exists():
+    for line in _ENV_PATH.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            key, _, val = line.partition("=")
+            if key.strip() not in os.environ:
+                os.environ[key.strip()] = val.strip()
+
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 
@@ -21,7 +32,10 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, File
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from jose import jwt, JWTError
-import stripe
+try:
+    import stripe
+except ImportError:
+    stripe = None
 import urllib.request
 
 from sqlalchemy import func, extract
@@ -31,7 +45,7 @@ from setup_logging import init_logging, get_logger
 
 logger = get_logger(__name__)
 
-BASE_DIR = Path("/home/ubuntu/saas")
+BASE_DIR = Path(os.path.dirname(__file__) or ".")
 SECRET_KEY = os.environ.get("SAAS_SECRET", secrets.token_hex(32))
 JWT_ALGO = "HS256"
 COOKIE_NAME = "saas_token"
@@ -115,7 +129,7 @@ def serve_html(name: str) -> HTMLResponse:
     path = BASE_DIR / "templates" / name
     if not path.exists():
         return HTMLResponse("Not found", 404)
-    return HTMLResponse(path.read_text())
+    return HTMLResponse(path.read_text(encoding="utf-8"))
 
 
 # ── Geo detection ──

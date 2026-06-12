@@ -11,7 +11,8 @@ logger = get_logger(__name__)
 
 AI_PROVIDER = os.environ.get("AI_PROVIDER", "openai").lower()
 AI_API_KEY = os.environ.get("AI_API_KEY", "")
-AI_MODEL = os.environ.get("AI_MODEL", "")
+AI_MODEL = os.environ.get("AI_MODEL", "deepseek/deepseek-v4-flash")
+OR_BASE_URL = "https://openrouter.ai/api/v1"
 
 # ── Prompt Templates ──
 
@@ -127,17 +128,18 @@ def _build_chat_messages(system: str, user_prompt: str) -> list:
     ]
 
 
-def _call_openai(messages: list, model: str = None, max_tokens: int = 512) -> str:
-    if not AI_API_KEY:
-        raise ValueError("AI_API_KEY not set")
-    model = model or AI_MODEL or "gpt-4o-mini"
-    url = "https://api.openai.com/v1/chat/completions"
-    with httpx.Client(timeout=45.0) as client:
+def _call_openrouter(messages: list, model: str = None, max_tokens: int = 512) -> str:
+    """Call OpenRouter API (OpenAI-compatible endpoint)."""
+    model = model or AI_MODEL
+    url = f"{OR_BASE_URL}/chat/completions"
+    with httpx.Client(timeout=60.0) as client:
         resp = client.post(
             url,
             headers={
                 "Authorization": f"Bearer {AI_API_KEY}",
                 "Content-Type": "application/json",
+                "HTTP-Referer": "https://threads-growth-saas.local",
+                "X-Title": "Threads Growth SaaS",
             },
             json={
                 "model": model,
@@ -147,53 +149,14 @@ def _call_openai(messages: list, model: str = None, max_tokens: int = 512) -> st
             },
         )
         if resp.status_code != 200:
-            logger.error(f"OpenAI error {resp.status_code}: {resp.text[:300]}")
-            raise RuntimeError(f"OpenAI API error: {resp.status_code}")
+            logger.error(f"OpenRouter error {resp.status_code}: {resp.text[:300]}")
+            raise RuntimeError(f"OpenRouter API error: {resp.status_code}")
         data = resp.json()
         return data["choices"][0]["message"]["content"].strip()
 
 
-def _call_anthropic(messages: list, model: str = None, max_tokens: int = 512) -> str:
-    if not AI_API_KEY:
-        raise ValueError("AI_API_KEY not set")
-    model = model or AI_MODEL or "claude-3-haiku-20240307"
-    url = "https://api.anthropic.com/v1/messages"
-    system_content = None
-    filtered = []
-    for m in messages:
-        if m["role"] == "system":
-            system_content = m["content"]
-        else:
-            filtered.append({"role": m["role"], "content": m["content"]})
-    body = {
-        "model": model,
-        "max_tokens": max_tokens,
-        "temperature": 0.85,
-        "messages": filtered,
-    }
-    if system_content:
-        body["system"] = system_content
-    with httpx.Client(timeout=45.0) as client:
-        resp = client.post(
-            url,
-            headers={
-                "x-api-key": AI_API_KEY,
-                "anthropic-version": "2023-06-01",
-                "Content-Type": "application/json",
-            },
-            json=body,
-        )
-        if resp.status_code != 200:
-            logger.error(f"Anthropic error {resp.status_code}: {resp.text[:300]}")
-            raise RuntimeError(f"Anthropic API error: {resp.status_code}")
-        data = resp.json()
-        return data["content"][0]["text"].strip()
-
-
 def _call_ai(messages: list, max_tokens: int = 512) -> str:
-    if AI_PROVIDER == "anthropic":
-        return _call_anthropic(messages, max_tokens=max_tokens)
-    return _call_openai(messages, max_tokens=max_tokens)
+    return _call_openrouter(messages, max_tokens=max_tokens)
 
 
 # ── Helpers ──

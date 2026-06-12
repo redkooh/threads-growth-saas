@@ -271,7 +271,7 @@ async def run_scheduler():
 
 async def scheduler_loop():
     """Run every 60 seconds. Started as a FastAPI lifespan task."""
-    logger.info("🚀 Scheduler started (checking every 60s)")
+    logger.info("Scheduler started (checking every 60s)")
     while True:
         await asyncio.sleep(60)
         await run_scheduler()

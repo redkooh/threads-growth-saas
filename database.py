@@ -16,7 +16,7 @@ if DB_TYPE == "postgresql":
     DB_URL = f"postgresql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
     engine = create_engine(DB_URL, pool_size=10, max_overflow=20)
 else:
-    DB_PATH = os.environ.get("SAAS_DB", "/home/ubuntu/saas/saas.db")
+    DB_PATH = os.environ.get("SAAS_DB", os.path.join(os.path.dirname(__file__) or ".", "saas.db"))
     engine = create_engine(
         f"sqlite:///{DB_PATH}",
         connect_args={"check_same_thread": False},
