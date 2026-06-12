@@ -12,7 +12,12 @@ try:
 except sqlite3.OperationalError as e:
     print(f"ℹ️ account_tags: {e}")
 
-# 2. Create content_presets table
+# 2. Add post_type column to schedules
+try:
+    c.execute("ALTER TABLE schedules ADD COLUMN post_type VARCHAR(20) DEFAULT 'thread'")
+    print("✅ Added post_type to schedules")
+except sqlite3.OperationalError as e:
+    print(f"ℹ️ schedules.post_type: {e}")
 c.execute("""
 CREATE TABLE IF NOT EXISTS content_presets (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

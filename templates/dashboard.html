@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dashboard — Threads Growth</title>
 <link rel="stylesheet" href="/static/css/app.css">
+<link rel="stylesheet" href="/static/css/schedule.css">
 <style>
 /*── Nav ──*/
 nav{padding:14px 32px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #2a2a3a;background:#12121a}
@@ -306,6 +307,7 @@ nav .tz-badge{font-size:11px;color:#555;background:#1a1a24;padding:3px 8px;borde
   <button class="tab-btn active" data-tab="dashboard">📊 Dashboard</button>
   <button class="tab-btn" data-tab="accounts">👤 Accounts</button>
   <button class="tab-btn" data-tab="analytics">📈 Analytics</button>
+  <button class="tab-btn" data-tab="schedule">📅 Schedule</button>
   <button class="tab-btn" data-tab="settings">⚙️ Settings</button>
 </div>
 
@@ -371,6 +373,57 @@ nav .tz-badge{font-size:11px;color:#555;background:#1a1a24;padding:3px 8px;borde
   <div class="card">
     <h3>Per-Account Performance</h3>
     <div id="analyticsAccounts"></div>
+  </div>
+</div>
+
+<!-- ════ TAB: Schedule ════ -->
+<div class="tab-content" id="tab-schedule">
+  <div class="timeline-wrap" id="scheduleTimelineWrap">
+    <div class="timeline-header">
+      <h3>📅 Daily Timeline</h3>
+      <div class="next-run" id="scheduleNextRun">Loading...</div>
+    </div>
+    <div class="timeline-legend">
+      <span><span class="legend-dot done"></span> Done today</span>
+      <span><span class="legend-dot pending"></span> Pending</span>
+      <span><span class="legend-dot upcoming"></span> Upcoming</span>
+      <span><span class="legend-dot sleep"></span> Sleep zone</span>
+    </div>
+    <div id="scheduleTimeline">
+      <div class="empty">Loading timeline...</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-header"><h3>⚡ Quick Add Slot</h3></div>
+    <div class="quick-add-bar">
+      <select id="slotAccount" style="min-width:140px"></select>
+      <div class="type-selector">
+        <span class="type-chip selected" onclick="setSlotType(this,'thread')">🧵 Thread</span>
+        <span class="type-chip" onclick="setSlotType(this,'reply')">💬 Reply</span>
+        <span class="type-chip" onclick="setSlotType(this,'fun_fact')">🎉 Fun Fact</span>
+      </div>
+      <input type="hidden" id="slotType" value="thread">
+      <input type="number" id="slotHour" value="12" min="0" max="23" style="width:80px" placeholder="UTC hour">
+      <button class="btn btn-primary btn-sm" onclick="quickAddSlot()">+ Add</button>
+    </div>
+
+    <div class="sleep-config">
+      <span>🌙 Sleep hours (UTC):</span>
+      <label>From</label>
+      <input type="number" id="sleepStartInput" min="0" max="23" value="2">
+      <label>to</label>
+      <input type="number" id="sleepEndInput" min="0" max="23" value="8">
+      <button class="btn btn-sm" style="background:rgba(168,85,247,0.15);color:#a855f7;border:1px solid rgba(168,85,247,0.3)" onclick="saveSleepConfig()">Save Sleep Hours</button>
+      <span style="font-size:11px;color:#555">No activity between these hours</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><h3>👤 Per-Account Slots</h3></div>
+    <div id="scheduleAccounts">
+      <div class="empty">Loading accounts...</div>
+    </div>
   </div>
 </div>
 
@@ -886,6 +939,7 @@ nav .tz-badge{font-size:11px;color:#555;background:#1a1a24;padding:3px 8px;borde
 <script src="/static/js/accounts.js"></script>
 <script src="/static/js/account_detail.js"></script>
 <script src="/static/js/settings.js"></script>
+<script src="/static/js/schedule.js"></script>
 <script src="/static/js/analytics.js"></script>
 <script src="/static/js/features.js"></script>
 <script src="/static/js/onboarding.js"></script>
@@ -899,6 +953,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
     if (btn.dataset.tab === 'accounts') refreshAccounts();
     if (btn.dataset.tab === 'analytics') loadAnalytics();
+    if (btn.dataset.tab === 'schedule') loadScheduleTab();
   });
 });
 

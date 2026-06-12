@@ -106,6 +106,7 @@ class Schedule(Base):
     enabled = Column(Boolean, default=True)
     last_run = Column(DateTime, nullable=True)
     last_status = Column(String(50), default="never")
+    post_type = Column(String(20), default="thread")  # thread, reply, fun_fact
     account = relationship("Account", back_populates="schedules")
 
 

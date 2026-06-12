@@ -40,6 +40,7 @@ window.switchTab = (name) => {
   document.getElementById('tab-' + name).classList.add('active');
   if (name === 'accounts') refreshAccounts();
   if (name === 'analytics') loadAnalytics();
+  if (name === 'schedule') loadScheduleTab();
 };
 
 window.skelLine = (n = 3) => Array.from({ length: n }, (_, i) => `<div class="skel skel-line" style="width:${60 + Math.random() * 30}%"></div>`).join('');

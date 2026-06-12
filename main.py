@@ -363,6 +363,40 @@ async def api_toggle_account(account_id: int, user: User = Depends(get_current_u
 
 # ── Schedules API ──
 
+# ── Schedules API ──
+
+@app.get("/api/schedules/all")
+async def api_schedules_all(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Get all schedules across all accounts for the unified timeline view."""
+    accounts = db.query(Account).filter(Account.user_id == user.id).all()
+    if not accounts:
+        return []
+    ids = [a.id for a in accounts]
+    schedules = db.query(Schedule).filter(Schedule.account_id.in_(ids)).order_by(Schedule.hour_utc).all()
+
+    # Determine which slots ran today
+    today = datetime.utcnow().date()
+    
+    result = []
+    for s in schedules:
+        ran_today = s.last_run and s.last_run.date() == today and s.last_status == "success"
+        account = next((a for a in accounts if a.id == s.account_id), None)
+        result.append({
+            "id": s.id,
+            "account_id": s.account_id,
+            "username": account.username if account else "unknown",
+            "display_name": account.display_name if account else "",
+            "slot_name": s.slot_name,
+            "hour_utc": s.hour_utc,
+            "post_type": s.post_type or "thread",
+            "enabled": s.enabled,
+            "last_run": s.last_run.isoformat() if s.last_run else None,
+            "last_status": s.last_status or "never",
+            "ran_today": ran_today,
+            "active": account.active if account else False,
+        })
+    return result
+
 @app.get("/api/accounts/{account_id}/schedules")
 async def api_schedules(account_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     account = db.query(Account).filter(Account.id == account_id, Account.user_id == user.id).first()
@@ -370,7 +404,8 @@ async def api_schedules(account_id: int, user: User = Depends(get_current_user),
         raise HTTPException(404)
     schedules = db.query(Schedule).filter(Schedule.account_id == account_id).order_by(Schedule.hour_utc).all()
     return [{"id": s.id, "slot_name": s.slot_name, "hour_utc": s.hour_utc, "enabled": s.enabled,
-             "last_run": s.last_run.isoformat() if s.last_run else None, "last_status": s.last_status} for s in schedules]
+             "last_run": s.last_run.isoformat() if s.last_run else None, "last_status": s.last_status,
+             "post_type": s.post_type or "thread"} for s in schedules]
 
 @app.post("/api/accounts/{account_id}/schedules/{schedule_id}/toggle")
 async def api_toggle_schedule(account_id: int, schedule_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -426,6 +461,7 @@ async def api_create_schedule(account_id: int, request: Request, user: User = De
     body = await request.json()
     hour = body.get("hour_utc", 12)
     name = body.get("slot_name", f"slot-{hour}")
+    ptype = body.get("post_type", "thread")
     # Check for dup hour
     existing = db.query(Schedule).filter(Schedule.account_id == account_id, Schedule.hour_utc == hour).first()
     if existing:
@@ -434,7 +470,7 @@ async def api_create_schedule(account_id: int, request: Request, user: User = De
     plan_max = {"starter": 6, "growth": 8, "agency": 12}.get(user.plan, 6)
     if total >= plan_max:
         return JSONResponse({"error": f"Plan limit: {plan_max} slots. Upgrade to add more."}, 403)
-    sched = Schedule(account_id=account_id, slot_name=name, hour_utc=hour, enabled=True)
+    sched = Schedule(account_id=account_id, slot_name=name, hour_utc=hour, enabled=True, post_type=ptype)
     db.add(sched)
     db.commit()
     return {"ok": True, "id": sched.id}
