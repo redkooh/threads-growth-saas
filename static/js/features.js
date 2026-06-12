@@ -66,6 +66,7 @@ async function saveCurrentAsPreset() {
       topic_keywords: detail.topic_keywords, avoid_topics: detail.avoid_topics,
       links_enabled: detail.links_enabled,
       target_niche: detail.target_niche, target_locations: detail.target_locations,
+      target_follower_min: detail.target_follower_min, target_follower_max: detail.target_follower_max,
       reply_keywords: detail.reply_keywords, reply_tone: detail.reply_tone,
       reply_length: detail.reply_length, viral_threshold: detail.viral_threshold,
       target_threads: detail.target_threads, target_replies: detail.target_replies,
@@ -226,14 +227,27 @@ function renderBatchCount() {
   if (el) el.textContent = `${batchSelected.size} selected`;
 }
 
+const BATCH_PRESETS = {
+  'general': { content_style: 'auto', post_tone: 'friendly', post_length: 'auto', target_niche: 'General / broad audience', topic_keywords: 'trending, viral, lifestyle, popular, relatable, daily life', reply_keywords: 'trending, viral, relatable, popular, thoughts, opinion', target_threads: 4, target_replies: 8, sleep_hours_start: 23, sleep_hours_end: 6, reply_tone: 'value_add' },
+  'tech-saas': { content_style: 'auto', post_tone: 'professional', post_length: 'auto', target_niche: 'Tech / SaaS founders', topic_keywords: 'startups, SaaS, AI, entrepreneurship, growth', reply_keywords: 'startup, SaaS, AI, funding, product', target_threads: 3, target_replies: 10, sleep_hours_start: 23, sleep_hours_end: 5 },
+  'fitness': { content_style: 'auto', post_tone: 'inspirational', post_length: 'auto', target_niche: 'Fitness / health enthusiasts', topic_keywords: 'workout, fitness, health, nutrition, gym', reply_keywords: 'workout, gym, fitness, diet, protein', target_threads: 3, target_replies: 8, sleep_hours_start: 0, sleep_hours_end: 6 },
+  'business': { content_style: 'auto', post_tone: 'professional', post_length: 'auto', target_niche: 'Business owners / entrepreneurs', topic_keywords: 'business, marketing, sales, leadership, growth', reply_keywords: 'business, revenue, marketing, sales, strategy', target_threads: 3, target_replies: 8, sleep_hours_start: 23, sleep_hours_end: 5 },
+  'casual': { content_style: 'auto', post_tone: 'friendly', post_length: 'auto', target_niche: 'General audience', target_threads: 4, target_replies: 10, sleep_hours_start: 23, sleep_hours_end: 6 },
+  'reset': { content_style: 'auto', post_tone: 'friendly', post_length: 'auto', post_format: 'text', target_threads: 4, target_replies: 8, max_threads: 10, max_replies: 20, sleep_hours_start: 23, sleep_hours_end: 6, viral_threshold: 0, reply_tone: 'value_add', reply_length: 'medium', topic_keywords: '', avoid_topics: '', reply_keywords: '', target_niche: '', links_enabled: false },
+};
+
 function showBatchApply() {
   if (batchSelected.size === 0) { toast('error', 'Select accounts first'); return; }
-  document.getElementById('batchSettingsJson').value = JSON.stringify({
-    content_style: 'casual', post_tone: 'friendly', post_length: 'medium',
-    target_threads: 4, target_replies: 8,
-    sleep_hours_start: 23, sleep_hours_end: 6,
-  }, null, 2);
+  document.getElementById('batchSettingsJson').value = JSON.stringify(BATCH_PRESETS['general'], null, 2);
   document.getElementById('batchModal').classList.add('show');
+}
+
+function batchPreset(name) {
+  const settings = BATCH_PRESETS[name];
+  if (settings) {
+    document.getElementById('batchSettingsJson').value = JSON.stringify(settings, null, 2);
+    toast('info', `Loaded "${name}" preset — click Apply to confirm`);
+  }
 }
 
 async function batchApply() {

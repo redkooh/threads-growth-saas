@@ -224,7 +224,7 @@ nav .tz-badge{font-size:11px;color:#555;background:#1a1a24;padding:3px 8px;borde
 .form-row .form-group{flex:1}
 .form-group input[type="checkbox"]{accent-color:#a855f7;width:auto}
 
-/*── Post list ──*/
+/*── Post list / Timeline feed ──*/
 .post-item{padding:10px 12px;border-bottom:1px solid #1f1f2a;font-size:13px}
 .post-item:last-child{border-bottom:none}
 .post-item .post-meta{display:flex;align-items:center;gap:8px;margin-bottom:4px}
@@ -236,6 +236,34 @@ nav .tz-badge{font-size:11px;color:#555;background:#1a1a24;padding:3px 8px;borde
 .post-item .post-preview{color:#aaa;line-height:1.4;margin-top:2px}
 .post-item .post-stats{display:flex;gap:12px;margin-top:4px;font-size:11px;color:#555}
 
+/*── Timeline feed (dashboard + account detail) ──*/
+.feed-empty{padding:32px;text-align:center;color:#555;font-size:14px}
+.feed-empty .empty-icon{font-size:32px;margin-bottom:8px}
+.feed-item{display:flex;gap:12px;padding:0 0 10px;position:relative}
+.feed-left{display:flex;flex-direction:column;align-items:center;width:28px;flex-shrink:0}
+.feed-icon{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
+.feed-icon.thread{background:rgba(168,85,247,0.12)}
+.feed-icon.reply{background:rgba(34,197,94,0.12)}
+.feed-icon.fun_fact{background:rgba(59,130,246,0.12)}
+.feed-icon.image{background:rgba(234,179,8,0.12)}
+.feed-icon.quote{background:rgba(236,72,153,0.12)}
+.feed-line{width:2px;flex:1;background:linear-gradient(180deg,#2a2a3a 0%,transparent 100%);min-height:8px;margin-top:2px}
+.feed-card{flex:1;background:#12121a;border:1px solid #222234;border-radius:10px;padding:10px 12px;transition:border 0.15s;min-width:0}
+.feed-card:hover{border-color:#3a3a4a}
+.feed-card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:4px}
+.feed-account-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0}
+.feed-account{font-size:12px;font-weight:600;color:#ccc;white-space:nowrap}
+.feed-type-badge{font-size:10px;padding:1px 6px;border-radius:6px;font-weight:500;text-transform:capitalize}
+.feed-type-badge.thread{background:rgba(168,85,247,0.1);color:#a855f7}
+.feed-type-badge.reply{background:rgba(34,197,94,0.1);color:#22c55e}
+.feed-type-badge.fun_fact{background:rgba(59,130,246,0.1);color:#3b82f6}
+.feed-type-badge.image{background:rgba(234,179,8,0.1);color:#eab308}
+.feed-type-badge.quote{background:rgba(236,72,153,0.1);color:#ec4899}
+.feed-code{font-size:10px;color:#555;font-family:monospace}
+.feed-time{font-size:11px;color:#555;white-space:nowrap;flex-shrink:0}
+.feed-preview{font-size:13px;color:#aaa;line-height:1.4;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.feed-stats{display:flex;gap:10px;margin-top:5px;font-size:11px;color:#555}
+
 /*── Update Account Modal ──*/
 .modal-box input,.modal-box textarea,.modal-box select{width:100%;padding:12px;border-radius:8px;border:1px solid #2a2a3a;background:#12121a;color:#e0e0e0;margin-bottom:8px;outline:none;font-size:13px}
 .modal-box input:focus,.modal-box textarea:focus,.modal-box select:focus{border-color:#a855f7}
@@ -243,7 +271,8 @@ nav .tz-badge{font-size:11px;color:#555;background:#1a1a24;padding:3px 8px;borde
 .modal-error{color:#ef4444;font-size:13px;margin-top:8px;display:none}
 
 @media(max-width:768px){
-  nav{padding:12px 16px}
+  nav{padding:10px 16px}
+  nav .nav-email{display:none}
   .tabs{padding:0 16px;overflow-x:auto;-webkit-overflow-scrolling:touch}
   .tab-btn{padding:12px 14px;font-size:13px;white-space:nowrap}
   .tab-content{padding:16px}
@@ -260,10 +289,16 @@ nav .tz-badge{font-size:11px;color:#555;background:#1a1a24;padding:3px 8px;borde
 <nav>
   <div class="logo">Threads Growth</div>
   <div class="user-info">
-    <span id="userEmail"></span>
-    <span class="plan-badge" id="userPlan"></span>
-    <span class="tz-badge" id="tzBadge"></span>
-    <a href="/logout">Sign Out</a>
+    <span id="userEmail" class="nav-email"></span>
+    <div class="nav-dropdown">
+      <span id="navDropdownToggle" class="nav-chevron">▾</span>
+      <div class="nav-dropdown-menu" id="navDropdownMenu">
+        <div class="nav-dropdown-item"><span class="plan-badge" id="userPlan"></span></div>
+        <div class="nav-dropdown-item tz-item">🕐 <span id="tzBadge"></span></div>
+        <div class="nav-dropdown-divider"></div>
+        <a href="/logout" class="nav-dropdown-item signout-item">🚪 Sign Out</a>
+      </div>
+    </div>
   </div>
 </nav>
 
@@ -293,10 +328,15 @@ nav .tz-badge{font-size:11px;color:#555;background:#1a1a24;padding:3px 8px;borde
 <div class="tab-content" id="tab-accounts">
   <div style="margin-bottom:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
     <button class="btn btn-primary" onclick="showAddAccount()">+ Add Account</button>
-    <button class="btn btn-sm" style="background:rgba(59,130,246,0.1);color:#3b82f6;border:1px solid rgba(59,130,246,0.3)" onclick="exportCSV()">📥 Export CSV</button>
-    <button class="btn btn-sm" style="background:rgba(168,85,247,0.1);color:#a855f7;border:1px solid rgba(168,85,247,0.3)" onclick="toggleBatchMode()">📋 Batch Mode</button>
     <span style="flex:1"></span>
-    <span class="last-updated" id="lastUpdated">Last updated: — <button onclick="refreshAll()">↻ Refresh</button></span>
+    <div class="more-menu" onclick="toggleMoreMenu(this)" style="position:relative;display:inline-block">
+      <button class="btn btn-sm" style="background:#1a1a24;border:1px solid #2a2a3a;color:#888;padding:6px 12px;border-radius:8px;cursor:pointer">•••</button>
+      <div class="more-menu-items" style="display:none;position:absolute;top:100%;right:0;background:#1a1a24;border:1px solid #2a2a3a;border-radius:10px;padding:6px;z-index:100;min-width:150px;flex-direction:column;gap:2px">
+        <button onclick="exportCSV()" style="all:unset;padding:8px 14px;font-size:13px;color:#ccc;cursor:pointer;border-radius:6px;display:flex;gap:8px;width:100%" onmouseenter="this.style.background='#2a2a3a'" onmouseleave="this.style.background=''">📥 Export accounts</button>
+        <button onclick="toggleBatchMode()" style="all:unset;padding:8px 14px;font-size:13px;color:#ccc;cursor:pointer;border-radius:6px;display:flex;gap:8px;width:100%" onmouseenter="this.style.background='#2a2a3a'" onmouseleave="this.style.background=''">📋 Batch edit</button>
+      </div>
+    </div>
+    <span class="last-updated" id="lastUpdated">Last updated: — <button onclick="refreshAll()">↻</button></span>
   </div>
 
   <div class="batch-bar" id="batchBar" style="display:none">
@@ -492,6 +532,208 @@ nav .tz-badge{font-size:11px;color:#555;background:#1a1a24;padding:3px 8px;borde
   </div>
 </div>
 
+<!-- ════ Post-Connect Setup Wizard ════ -->
+<div class="setup-wizard-overlay" id="setupWizard">
+  <div class="setup-wizard-box">
+    <div class="wiz-progress" id="wizProgress">
+      <div class="wiz-step-dot active" data-step="1"></div>
+      <div class="wiz-step-line"></div>
+      <div class="wiz-step-dot" data-step="2"></div>
+      <div class="wiz-step-line"></div>
+      <div class="wiz-step-dot" data-step="3"></div>
+      <div class="wiz-step-line"></div>
+      <div class="wiz-step-dot" data-step="4"></div>
+    </div>
+    <div class="wiz-step-label-row">
+      <span class="active" data-step="1">Vibe</span>
+      <span data-step="2">Schedule</span>
+      <span data-step="3">Audience</span>
+      <span data-step="4">Done!</span>
+    </div>
+
+    <!-- Step 1: Vibe -->
+    <div class="wiz-step active" id="wizStep1">
+      <div class="wiz-icon">🎨</div>
+      <h3>What's your vibe?</h3>
+      <p>Choose a style — we'll match your tone, topics, and posting personality</p>
+      <div class="vibe-picker" id="wizVibePicker">
+        <div class="vibe-card" data-vibe="casual-lifestyle" onclick="wizSelectVibe(this,'casual-lifestyle')">
+          <div class="vibe-emoji">😎</div>
+          <div class="vibe-name">Casual Lifestyle</div>
+          <div class="vibe-desc">Friendly, relatable — like a bestie sharing thoughts</div>
+          <div class="vibe-tags">daily life · humor · popular topics</div>
+        </div>
+        <div class="vibe-card" data-vibe="hustle-culture" onclick="wizSelectVibe(this,'hustle-culture')">
+          <div class="vibe-emoji">🚀</div>
+          <div class="vibe-name">Hustle Culture</div>
+          <div class="vibe-desc">Ambitious, growth-focused — for entrepreneurs & builders</div>
+          <div class="vibe-tags">startups · SaaS · business · money</div>
+        </div>
+        <div class="vibe-card" data-vibe="professional-expert" onclick="wizSelectVibe(this,'professional-expert')">
+          <div class="vibe-emoji">💼</div>
+          <div class="vibe-name">Professional Expert</div>
+          <div class="vibe-desc">Authoritative, insightful — build credibility in your field</div>
+          <div class="vibe-tags">industry insights · thought leadership</div>
+        </div>
+        <div class="vibe-card" data-vibe="hot-takes" onclick="wizSelectVibe(this,'hot-takes')">
+          <div class="vibe-emoji">🌶️</div>
+          <div class="vibe-name">Hot Takes</div>
+          <div class="vibe-desc">Spicy opinions, controversy — spark conversations</div>
+          <div class="vibe-tags">debates · unpopular opinions · trends</div>
+        </div>
+        <div class="vibe-card" data-vibe="educational" onclick="wizSelectVibe(this,'educational')">
+          <div class="vibe-emoji">📚</div>
+          <div class="vibe-name">Teacher Mode</div>
+          <div class="vibe-desc">Educate, explain, add value — be the go-to resource</div>
+          <div class="vibe-tags">tutorials · how-tos · deep dives</div>
+        </div>
+        <div class="vibe-card" data-vibe="funny" onclick="wizSelectVibe(this,'funny')">
+          <div class="vibe-emoji">😂</div>
+          <div class="vibe-name">Funny & Witty</div>
+          <div class="vibe-desc">Humor, memes, jokes — entertain your audience</div>
+          <div class="vibe-tags">parodies · memes · clever one-liners</div>
+        </div>
+      </div>
+      <div class="wiz-btns">
+        <button class="btn btn-primary" id="wizBtn1" disabled onclick="wizNext()">Pick Your Vibe →</button>
+      </div>
+    </div>
+
+    <!-- Step 2: Schedule -->
+    <div class="wiz-step" id="wizStep2">
+      <div class="wiz-icon">⏰</div>
+      <h3>When should we post?</h3>
+      <p>Pick a posting schedule — you can change this anytime</p>
+      <div class="sched-preset-picker" id="wizSchedPicker">
+        <div class="sched-preset-card selected" data-sched="popular" onclick="wizSelectSched(this,'popular')">
+          <div class="sched-preset-emoji">📊</div>
+          <div class="sched-preset-name">Popular Times</div>
+          <div class="sched-preset-times">9 AM · 12 PM · 4 PM · 8 PM (your time)</div>
+          <div class="sched-preset-desc">Best engagement — recommended for most accounts</div>
+        </div>
+        <div class="sched-preset-card" data-sched="morning" onclick="wizSelectSched(this,'morning')">
+          <div class="sched-preset-emoji">🌅</div>
+          <div class="sched-preset-name">Early Bird</div>
+          <div class="sched-preset-times">6 AM · 8 AM · 10 AM · 12 PM (your time)</div>
+          <div class="sched-preset-desc">Reach the morning scroll crowd</div>
+        </div>
+        <div class="sched-preset-card" data-sched="evening" onclick="wizSelectSched(this,'evening')">
+          <div class="sched-preset-emoji">🌙</div>
+          <div class="sched-preset-name">Evening Crew</div>
+          <div class="sched-preset-times">5 PM · 7 PM · 9 PM · 11 PM (your time)</div>
+          <div class="sched-preset-desc">After-work and late-night audience</div>
+        </div>
+        <div class="sched-preset-card" data-sched="spread" onclick="wizSelectSched(this,'spread')">
+          <div class="sched-preset-emoji">📋</div>
+          <div class="sched-preset-name">All Day Spread</div>
+          <div class="sched-preset-times">6 AM · 10 AM · 2 PM · 6 PM · 10 PM (your time)</div>
+          <div class="sched-preset-desc">5 slots — maximum reach across timezones</div>
+        </div>
+      </div>
+      <div class="wiz-btns">
+        <button class="btn-cancel" onclick="wizPrev()">Back</button>
+        <button class="btn btn-primary" onclick="wizNext()">Set Schedule →</button>
+      </div>
+    </div>
+
+    <!-- Step 3: Audience -->
+    <div class="wiz-step" id="wizStep3">
+      <div class="wiz-icon">🌐</div>
+      <h3>What's your niche?</h3>
+      <p>Pick your audience — the AI targets content and replies to the right people</p>
+      <div class="audience-picker" id="wizAudiencePicker" style="grid-template-columns:repeat(3,1fr);max-height:360px;overflow-y:auto">
+        <div class="audience-card selected" data-audience="general" onclick="wizSelectAudience(this,'general')">
+          <div class="audience-emoji">🌍</div>
+          <div class="audience-name">General</div>
+          <div class="audience-desc">Broad appeal, trending topics, viral content</div>
+        </div>
+        <div class="audience-card" data-audience="tech-saas" onclick="wizSelectAudience(this,'tech-saas')">
+          <div class="audience-emoji">💻</div>
+          <div class="audience-name">Tech & SaaS</div>
+          <div class="audience-desc">Developers, founders, tech enthusiasts</div>
+        </div>
+        <div class="audience-card" data-audience="fitness-health" onclick="wizSelectAudience(this,'fitness-health')">
+          <div class="audience-emoji">💪</div>
+          <div class="audience-name">Fitness & Health</div>
+          <div class="audience-desc">Gym, nutrition, wellness crowd</div>
+        </div>
+        <div class="audience-card" data-audience="business" onclick="wizSelectAudience(this,'business')">
+          <div class="audience-emoji">📊</div>
+          <div class="audience-name">Business</div>
+          <div class="audience-desc">Entrepreneurs, marketers, sales</div>
+        </div>
+        <div class="audience-card" data-audience="finance-investing" onclick="wizSelectAudience(this,'finance-investing')">
+          <div class="audience-emoji">💰</div>
+          <div class="audience-name">Finance & Crypto</div>
+          <div class="audience-desc">Investing, trading, personal finance</div>
+        </div>
+        <div class="audience-card" data-audience="gaming" onclick="wizSelectAudience(this,'gaming')">
+          <div class="audience-emoji">🎮</div>
+          <div class="audience-name">Gaming</div>
+          <div class="audience-desc">Gamers, esports, streamers</div>
+        </div>
+        <div class="audience-card" data-audience="fashion-beauty" onclick="wizSelectAudience(this,'fashion-beauty')">
+          <div class="audience-emoji">💅</div>
+          <div class="audience-name">Fashion & Beauty</div>
+          <div class="audience-desc">Style, skincare, makeup lovers</div>
+        </div>
+        <div class="audience-card" data-audience="food-cooking" onclick="wizSelectAudience(this,'food-cooking')">
+          <div class="audience-emoji">🍳</div>
+          <div class="audience-name">Food & Cooking</div>
+          <div class="audience-desc">Recipes, chefs, foodies</div>
+        </div>
+        <div class="audience-card" data-audience="travel" onclick="wizSelectAudience(this,'travel')">
+          <div class="audience-emoji">✈️</div>
+          <div class="audience-name">Travel</div>
+          <div class="audience-desc">Travelers, nomads, explorers</div>
+        </div>
+        <div class="audience-card" data-audience="parenting" onclick="wizSelectAudience(this,'parenting')">
+          <div class="audience-emoji">👶</div>
+          <div class="audience-name">Parenting</div>
+          <div class="audience-desc">Moms, dads, family content</div>
+        </div>
+        <div class="audience-card" data-audience="music" onclick="wizSelectAudience(this,'music')">
+          <div class="audience-emoji">🎵</div>
+          <div class="audience-name">Music</div>
+          <div class="audience-desc">Musicians, producers, fans</div>
+        </div>
+        <div class="audience-card" data-audience="sports" onclick="wizSelectAudience(this,'sports')">
+          <div class="audience-emoji">⚽</div>
+          <div class="audience-name">Sports</div>
+          <div class="audience-desc">Athletes, fans, competitors</div>
+        </div>
+        <div class="audience-card" data-audience="motivation" onclick="wizSelectAudience(this,'motivation')">
+          <div class="audience-emoji">🔥</div>
+          <div class="audience-name">Motivation</div>
+          <div class="audience-desc">Self-improvement, mindset, growth</div>
+        </div>
+      </div>
+      <div style="font-size:11px;color:#555;margin:4px 0">Don't see yours? Just pick the closest one — you can customize later</div>
+      <div class="wiz-btns">
+        <button class="btn-cancel" onclick="wizPrev()">Back</button>
+        <button class="btn btn-primary" onclick="wizNext()">Next →</button>
+        <button class="btn btn-sm" style="background:transparent;color:#555;border:1px solid #2a2a3a" onclick="wizSkip(3)">Skip →</button>
+      </div>
+    </div>
+
+    <!-- Step 4: Done -->
+    <div class="wiz-step" id="wizStep4">
+      <div class="wiz-icon" style="font-size:64px">🎉</div>
+      <h3>You're all set!</h3>
+      <p id="wizDoneMsg">Your account is configured and ready to grow. The AI will start posting on your schedule.</p>
+      <div class="wiz-recap" id="wizRecap">
+        <div class="recap-row"><span class="recap-label">Vibe</span><span class="recap-val" id="wizRecapVibe">—</span></div>
+        <div class="recap-row"><span class="recap-label">Schedule</span><span class="recap-val" id="wizRecapSched">—</span></div>
+        <div class="recap-row"><span class="recap-label">Audience</span><span class="recap-val" id="wizRecapAud">—</span></div>
+      </div>
+      <div class="wiz-btns" style="margin-top:20px">
+        <button class="btn btn-primary" onclick="wizFinish()" style="font-size:16px;padding:14px 48px">🚀 Take Me to Dashboard</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
 <!-- ════ Toast Container ════ -->
 <div class="toast-container" id="toastContainer"></div>
 
@@ -517,7 +759,7 @@ nav .tz-badge{font-size:11px;color:#555;background:#1a1a24;padding:3px 8px;borde
     <input id="inputThreadsUser" placeholder="Threads username or email" style="margin-bottom:8px">
     <input id="inputThreadsPass" type="password" placeholder="Password" style="margin-bottom:12px">
 
-    <label style="font-size:13px;color:#888;display:block;margin-bottom:4px">Proxy Region 🇺🇸</label>
+    <label style="font-size:13px;color:#888;display:block;margin-bottom:4px">Where should we post from? 🇺🇸</label>
     <select id="inputCountry">
       <option value="UnitedStates">🇺🇸 United States</option>
       <option value="Canada">🇨🇦 Canada</option>
@@ -592,7 +834,7 @@ nav .tz-badge{font-size:11px;color:#555;background:#1a1a24;padding:3px 8px;borde
       <option value="Malta">🇲🇹 Malta</option>
       <option value="Iceland">🇮🇸 Iceland</option>
     </select>
-    <p style="font-size:11px;color:#555;margin:4px 0 12px">Your Threads traffic will route through this region</p>
+    <p style="font-size:11px;color:#555;margin:4px 0 12px">Keeps your account safe — picks a local IP from this area</p>
 
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="btn btn-primary" style="flex:1" id="connectBtn" onclick="saveAccount()">Connect Account</button>
@@ -620,11 +862,20 @@ nav .tz-badge{font-size:11px;color:#555;background:#1a1a24;padding:3px 8px;borde
 <div class="modal-overlay" id="batchModal">
   <div class="modal-box" style="width:560px">
     <h3>⚙️ Batch Apply Settings</h3>
-    <p>Enter settings as JSON — these will be applied to all selected accounts</p>
-    <textarea id="batchSettingsJson" class="preset-save-modal" style="width:100%;min-height:140px;padding:10px;border-radius:8px;border:1px solid #2a2a3a;background:#0f0f13;color:#e0e0e0;font-family:monospace;font-size:12px;resize:vertical;margin-bottom:12px"></textarea>
+    <p>Choose a preset or enter custom settings — applied to all selected accounts</p>
+    <div class="batch-presets">
+      <button class="batch-preset-btn" onclick="batchPreset('general')">🌍 General</button>
+      <button class="batch-preset-btn" onclick="batchPreset('tech-saas')">💻 Tech & SaaS</button>
+      <button class="batch-preset-btn" onclick="batchPreset('fitness')">💪 Fitness</button>
+      <button class="batch-preset-btn" onclick="batchPreset('business')">📊 Business</button>
+      <button class="batch-preset-btn" onclick="batchPreset('casual')">😎 Casual</button>
+      <button class="batch-preset-btn" onclick="batchPreset('reset')">🔄 Factory Reset</button>
+    </div>
+    <label class="batch-custom-label">Or enter custom JSON settings:</label>
+    <textarea id="batchSettingsJson" style="width:100%;min-height:80px;padding:10px;border-radius:8px;border:1px solid #2a2a3a;background:#0f0f13;color:#e0e0e0;font-family:monospace;font-size:12px;resize:vertical;margin-bottom:12px"></textarea>
     <div class="modal-btns">
       <button class="btn-cancel" onclick="document.getElementById('batchModal').classList.remove('show')">Cancel</button>
-      <button class="btn btn-primary" onclick="batchApply()">Apply</button>
+      <button class="btn btn-primary" onclick="batchApply()">Apply to Selected</button>
     </div>
     <div class="modal-error" id="batchError"></div>
   </div>
@@ -660,7 +911,7 @@ async function loadAll() {
     document.getElementById('settingsEmail').textContent = me.email;
     document.getElementById('settingsPlan').textContent = me.plan_config.name;
     document.getElementById('settingsPlanFee').textContent = me.plan_config.price;
-    document.getElementById('tzBadge').textContent = '🕐 ' + Intl.DateTimeFormat().resolvedOptions().timeZone;
+    document.getElementById('tzBadge').textContent = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
     const cfg = me.plan_config;
     const stats = await api('/api/stats');
@@ -691,6 +942,15 @@ async function loadAll() {
     toast('error', 'Failed to load dashboard');
   }
 }
+
+// ── Nav dropdown toggle ──
+document.getElementById('navDropdownToggle').addEventListener('click', (e) => {
+  e.stopPropagation();
+  document.getElementById('navDropdownMenu').classList.toggle('open');
+});
+document.addEventListener('click', () => {
+  document.getElementById('navDropdownMenu').classList.remove('open');
+});
 
 document.addEventListener('DOMContentLoaded', loadAll);
 </script>

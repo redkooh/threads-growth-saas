@@ -57,11 +57,11 @@ def _convert_cookies(cookies_input) -> dict:
 def human_delay(action_type: str = "post"):
     """Sleep a random human-like delay based on action type."""
     delays = {
-        "post_thread": (8, 18),
-        "post_text": (4, 10),
-        "reply": (6, 16),
-        "feed_read": (2, 5),
-        "like": (3, 8),
+        "post_thread": (40, 90),    # 5x: slower, safer
+        "post_text": (20, 50),      # 5x: slower, safer
+        "reply": (60, 160),         # 10x: safer
+        "feed_read": (10, 25),      # 5x: slower, safer
+        "like": (15, 40),           # 5x: slower, safer
     }
     lo, hi = delays.get(action_type, (4, 10))
     secs = random.uniform(lo, hi)

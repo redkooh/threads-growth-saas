@@ -49,7 +49,7 @@ class Account(Base):
     bio = Column(String(500), default="")
     link = Column(String(500), default="")
     ds_user_id = Column(String(100), default="")
-    niche = Column(String(100), default="universal_usa")
+    niche = Column(String(100), default="general")
     cookies_encrypted = Column(Text, default="")
     proxy = Column(String(500), default="")
     active = Column(Boolean, default=True)
@@ -65,10 +65,10 @@ class Account(Base):
     sleep_hours_end = Column(Integer, default=8)     # and end (inclusive)
 
     # ── Content Style ──
-    content_style = Column(String(50), default="casual")
+    content_style = Column(String(50), default="auto")
     vibe = Column(String(100), default="")
     post_tone = Column(String(50), default="friendly")
-    post_length = Column(String(20), default="medium")
+    post_length = Column(String(20), default="auto")
     post_format = Column(String(20), default="text")
     topic_keywords = Column(Text, default="")         # JSON array of topics/keywords to post about
     avoid_topics = Column(Text, default="")            # JSON array of topics to NEVER post
@@ -77,15 +77,17 @@ class Account(Base):
     # ── Audience Targeting ──
     target_niche = Column(String(200), default="")
     target_locations = Column(Text, default="")        # JSON array of target countries
+    target_follower_min = Column(Integer, default=0)
+    target_follower_max = Column(Integer, default=1000000)
 
     # ── Account Tags ──
     account_tags = Column(Text, default="[]")           # JSON array of tag strings ["client-1","test"]
 
     # ── Reply Strategy ──
     reply_keywords = Column(Text, default="")          # JSON array — only reply to posts with these
-    reply_tone = Column(String(50), default="value_add")
-    reply_length = Column(String(20), default="medium")
-    viral_threshold = Column(Integer, default=50)      # min likes before replying
+    reply_tone = Column(String(50), default="auto")
+    reply_length = Column(String(20), default="auto")
+    viral_threshold = Column(Integer, default=0)      # min likes before replying
 
     # ── Stats (reset daily) ──
     today_threads = Column(Integer, default=0)

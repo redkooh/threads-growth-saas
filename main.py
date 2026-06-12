@@ -324,7 +324,7 @@ async def api_create_account(request: Request, user: User = Depends(get_current_
         display_name=body.get("display_name", ""),
         bio=body.get("bio", ""),
         link=body.get("link", ""),
-        niche=body.get("niche", "universal_usa"),
+        niche=body.get("niche", "general"),
         proxy=body.get("proxy", ""),
         cookies_encrypted=json.dumps(body.get("cookies", [])),
         active=True,
@@ -391,7 +391,9 @@ async def api_posts(user: User = Depends(get_current_user), db: Session = Depend
         return []
     ids = [a.id for a in accounts]
     posts = db.query(Post).filter(Post.account_id.in_(ids)).order_by(Post.posted_at.desc()).limit(50).all()
-    return [{"id": p.id, "account_id": p.account_id, "type": p.post_type, "code": p.thread_code,
+    acct_map = {a.id: a for a in accounts}
+    return [{"id": p.id, "account_id": p.account_id, "account_name": (acct_map[p.account_id].display_name or acct_map[p.account_id].username) if p.account_id in acct_map else None,
+             "type": p.post_type, "code": p.thread_code,
              "preview": p.content_preview, "posted_at": p.posted_at.isoformat() if p.posted_at else None,
              "likes": p.likes, "replies": p.replies} for p in posts]
 
@@ -491,7 +493,8 @@ async def api_account_detail(account_id: int, user: User = Depends(get_current_u
         "links_enabled": account.links_enabled,
         # audience
         "target_niche": account.target_niche,
-        "target_locations": account.target_locations,
+        "target_follower_min": account.target_follower_min,
+        "target_follower_max": account.target_follower_max,
         # replies
         "reply_keywords": account.reply_keywords,
         "reply_tone": account.reply_tone,
@@ -523,13 +526,14 @@ async def api_account_settings(account_id: int, request: Request, user: User = D
     for field in ["target_threads", "target_replies",
                    "max_threads", "max_replies",
                    "sleep_hours_start", "sleep_hours_end",
-                   "viral_threshold"]:
+                   "viral_threshold",
+                   "target_follower_min", "target_follower_max"]:
         if field in body:
             setattr(account, field, max(0, int(body[field])))
 
     for field in ["content_style", "vibe", "post_tone", "post_length", "post_format",
                    "topic_keywords", "avoid_topics",
-                   "target_niche", "target_locations",
+                   "target_niche",
                    "reply_keywords", "reply_tone", "reply_length"]:
         if field in body:
             setattr(account, field, str(body[field]))
@@ -693,7 +697,8 @@ async def api_apply_preset(preset_id: int, account_id: int, user: User = Depends
     settings = json.loads(preset.settings_json or "{}")
     for field in ["content_style", "vibe", "post_tone", "post_length", "post_format",
                    "topic_keywords", "avoid_topics", "links_enabled",
-                   "target_niche", "target_locations",
+                   "target_niche",
+                   "target_follower_min", "target_follower_max",
                    "reply_keywords", "reply_tone", "reply_length", "viral_threshold",
                    "target_threads", "target_replies", "max_threads", "max_replies",
                    "sleep_hours_start", "sleep_hours_end"]:
@@ -753,7 +758,7 @@ async def api_account_risk(account_id: int, user: User = Depends(get_current_use
         reasons.append(f"High today activity ({total_today} actions)")
 
     # Posting without niche
-    if not account.target_niche and account.niche == "universal_usa":
+    if not account.target_niche and account.niche == "general":
         risk += 5
         reasons.append("No niche targeting — broad posting")
 

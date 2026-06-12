@@ -55,6 +55,8 @@ Vibe: {vibe}
 AVOID mentioning: {avoid}
 Theme: {theme}
 
+When style or length is 'auto', choose what fits the topic best — don't force everything the same way. Mix it up naturally.
+
 Post:"""
 
 REPLY_PROMPT = """Reply to this Threads post naturally:
@@ -68,6 +70,8 @@ Your reply tone: {tone}
 Your reply length: {length}
 Keywords to weave in naturally: {keywords}
 Target's reply count: {replies} ({"high engagement post — add value" if isinstance(replies, int) and replies > 10 else "conversation starter — be friendly"})
+
+When tone or length is 'auto', choose what fits the post best — match the post's vibe, don't force a formula. Mix it up naturally across replies.
 
 Reply:"""
 
@@ -84,6 +88,7 @@ Post:"""
 # ── Length guides ──
 
 LENGTH_GUIDE = {
+    "auto": "Pick the right length for the topic — short punchy takes get 1-2 sentences, detailed insights get 3-5 sentences, deep dives up to 2200 chars",
     "short": "1-2 sentences, max 150 characters",
     "medium": "3-5 sentences, 150-500 characters",
     "long": "5+ sentences, 500-2200 characters (the Threads limit)",
@@ -226,6 +231,7 @@ def _parse_feed_context(feed_posts: list = None, max_items: int = 4) -> str:
 
 
 STYLES = {
+    "auto": "Choose the best style naturally — casual for lifestyle, professional for business, educational for how-tos, viral for hot topics, controversial for debates. Match the topic.",
     "casual": "Friendly, conversational, like talking to a friend",
     "viral": "Bold takes, hooks, engagement bait, controversial edge",
     "professional": "Polished, informed, expert voice with data",
@@ -235,7 +241,7 @@ STYLES = {
 
 
 def _get_style_desc(style: str) -> str:
-    return STYLES.get(style, STYLES["casual"])
+    return STYLES.get(style, STYLES["auto"])
 
 
 # ── Public API ──
@@ -258,18 +264,19 @@ def generate_thread(
     topics = _comma_list(_safe_json_list(account.topic_keywords))
     avoid = _comma_list(_safe_json_list(account.avoid_topics)) or "nothing specific"
     feed_context = _parse_feed_context(feed_posts)
-    style = _get_style_desc(account.content_style or "casual")
+    style = _get_style_desc(account.content_style or "auto")
     theme_str = theme or "general"
 
-    max_chars = 500 if (account.post_length or "medium") != "long" else 2200
+    post_len = account.post_length or "auto"
+    max_chars = 2200 if post_len == "long" else 500
 
     prompt = THREAD_PROMPT.format(
         topics=topics,
         feed_context=feed_context,
         style=style,
         tone=account.post_tone or "friendly",
-        length=account.post_length or "medium",
-        length_guide=LENGTH_GUIDE.get(account.post_length, LENGTH_GUIDE["medium"]),
+        length=post_len,
+        length_guide=LENGTH_GUIDE.get(post_len, LENGTH_GUIDE["auto"]),
         format=account.post_format or "text",
         vibe=account.vibe or "authentic and relatable",
         avoid=avoid,
@@ -279,7 +286,7 @@ def generate_thread(
     system = SYSTEM_THREAD.format(max_chars=max_chars)
     messages = _build_chat_messages(system, prompt)
     content = _call_ai(messages)
-    logger.info(f"Generated thread ({account.post_length or 'medium'}, {len(content)} chars)")
+    logger.info(f"Generated thread ({post_len}, {len(content)} chars)")
 
     # Determine source
     source = "trend-aware" if feed_posts else "topic-based"
@@ -307,15 +314,16 @@ def generate_reply(
     likes = target_post.get("like_count", 0)
     replies = target_post.get("reply_count", 0)
 
-    max_tokens = 256 if (account.reply_length or "medium") == "short" else 384
+    reply_len = account.reply_length or "auto"
+    max_tokens = 384 if reply_len == "auto" else (256 if reply_len == "short" else 384)
 
     prompt = REPLY_PROMPT.format(
         parent_text=parent_text,
         target_username=target_username,
         likes=likes,
         replies=replies,
-        tone=account.reply_tone or "value_add",
-        length=account.reply_length or "medium",
+        tone=account.reply_tone or "auto",
+        length=reply_len,
         keywords=keywords,
     )
 
@@ -338,7 +346,7 @@ def generate_fun_fact(account, feed_posts: list = None) -> str:
     prompt = FUN_FACT_PROMPT.format(
         topics=topics + extra,
         tone=account.post_tone or "friendly",
-        style=_get_style_desc(account.content_style or "casual"),
+        style=_get_style_desc(account.content_style or "auto"),
         vibe=account.vibe or "interesting and engaging",
     )
 

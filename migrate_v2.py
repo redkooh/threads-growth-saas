@@ -15,7 +15,7 @@ new_cols = {
     "sleep_hours_start": ("INTEGER", 2),
     "sleep_hours_end": ("INTEGER", 8),
     "post_tone": ("VARCHAR(50)", "'friendly'"),
-    "post_length": ("VARCHAR(20)", "'medium'"),
+    "post_length": ("VARCHAR(20)", "'auto'"),
     "post_format": ("VARCHAR(20)", "'text'"),
     "topic_keywords": ("TEXT", "''"),
     "avoid_topics": ("TEXT", "''"),
@@ -24,7 +24,7 @@ new_cols = {
     "reply_keywords": ("TEXT", "''"),
     "reply_tone": ("VARCHAR(50)", "'value_add'"),
     "reply_length": ("VARCHAR(20)", "'medium'"),
-    "viral_threshold": ("INTEGER", 50),
+    "viral_threshold": ("INTEGER", 0),
 }
 
 added = 0

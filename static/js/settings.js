@@ -7,17 +7,18 @@ async function saveAccountSettings(accountId) {
   try {
     const body = {};
     ['target_threads', 'target_replies', 'max_threads', 'max_replies',
-      'sleep_hours_start', 'sleep_hours_end', 'viral_threshold'].forEach(f => {
+      'sleep_hours_start', 'sleep_hours_end', 'viral_threshold',
+      'target_follower_min', 'target_follower_max'].forEach(f => {
         const el = document.getElementById(f);
         if (el) body[f] = parseInt(el.value) || 0;
       });
     ['content_style', 'vibe', 'post_tone', 'post_length', 'post_format',
-      'topic_keywords', 'avoid_topics', 'target_niche', 'target_locations',
+      'topic_keywords', 'avoid_topics', 'target_niche',
       'reply_keywords', 'reply_tone', 'reply_length'].forEach(f => {
         const idMap = {
           vibe: 'vibeInput', content_style: 'contentStyle', post_tone: 'postTone',
           post_length: 'postLength', post_format: 'postFormat', topic_keywords: 'topicKeywords',
-          avoid_topics: 'avoidTopics', target_niche: 'targetNiche', target_locations: 'targetLocations',
+          avoid_topics: 'avoidTopics', target_niche: 'targetNiche',
           reply_keywords: 'replyKeywords', reply_tone: 'replyTone', reply_length: 'replyLength',
         };
         const el = document.getElementById(idMap[f] || f);

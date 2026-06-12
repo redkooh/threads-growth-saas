@@ -16,7 +16,7 @@ new_cols = [
     ("max_replies", "INTEGER DEFAULT 15"),
     ("max_follows", "INTEGER DEFAULT 5"),
     ("max_dms", "INTEGER DEFAULT 3"),
-    ("content_style", "TEXT DEFAULT 'casual'"),
+    ("content_style", "TEXT DEFAULT 'auto'"),
     ("vibe", "TEXT DEFAULT ''"),
     ("links_enabled", "BOOLEAN DEFAULT 0"),
     ("today_follows", "INTEGER DEFAULT 0"),
