@@ -3,15 +3,27 @@
 Driven by each account's content_style, topic_keywords, tone, length, format,
 vibe, avoid_topics + live feed context for trend-aware content.
 """
-import os, json, random
+import os, json, random, time
+from pathlib import Path
 import httpx
 from setup_logging import get_logger
 
 logger = get_logger(__name__)
 
-AI_PROVIDER = os.environ.get("AI_PROVIDER", "openai").lower()
+# ── Load .env so ai.py works standalone (e.g. tests) ──
+_env_path = Path(__file__).parent / ".env"
+if _env_path.exists():
+    for line in _env_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            key, _, val = line.partition("=")
+            if val.strip():
+                os.environ.setdefault(key.strip(), val.strip())
+
+AI_PROVIDER = os.environ.get("AI_PROVIDER", "openrouter").lower()
 AI_API_KEY = os.environ.get("AI_API_KEY", "")
 AI_MODEL = os.environ.get("AI_MODEL", "deepseek/deepseek-v4-flash")
+AI_FALLBACK_MODEL = "xiaomi/mimo-v2.5"
 OR_BASE_URL = "https://openrouter.ai/api/v1"
 
 # ── Prompt Templates ──
@@ -129,30 +141,70 @@ def _build_chat_messages(system: str, user_prompt: str) -> list:
 
 
 def _call_openrouter(messages: list, model: str = None, max_tokens: int = 512) -> str:
-    """Call OpenRouter API (OpenAI-compatible endpoint)."""
-    model = model or AI_MODEL
+    """Call OpenRouter with retry + fallback.
+    
+    Tries primary model first (DeepSeek V4 Flash by default).
+    On 429/5xx: retries once with backoff, then falls back to fallback model (Mimo V2.5).
+    On 4xx: raises immediately (bad request, auth error, etc).
+    """
+    primary = model or AI_MODEL
+    fallback = AI_FALLBACK_MODEL
     url = f"{OR_BASE_URL}/chat/completions"
-    with httpx.Client(timeout=60.0) as client:
-        resp = client.post(
-            url,
-            headers={
-                "Authorization": f"Bearer {AI_API_KEY}",
-                "Content-Type": "application/json",
-                "HTTP-Referer": "https://threads-growth-saas.local",
-                "X-Title": "Threads Growth SaaS",
-            },
-            json={
-                "model": model,
-                "messages": messages,
-                "temperature": 0.85,
-                "max_tokens": max_tokens,
-            },
-        )
-        if resp.status_code != 200:
-            logger.error(f"OpenRouter error {resp.status_code}: {resp.text[:300]}")
-            raise RuntimeError(f"OpenRouter API error: {resp.status_code}")
-        data = resp.json()
-        return data["choices"][0]["message"]["content"].strip()
+    last_error = None
+
+    models_to_try = [(primary, "primary"), (fallback, "fallback")]
+
+    for model_name, label in models_to_try:
+        for attempt in range(2):  # retry once per model
+            try:
+                with httpx.Client(timeout=60.0) as client:
+                    resp = client.post(
+                        url,
+                        headers={
+                            "Authorization": f"Bearer {AI_API_KEY}",
+                            "Content-Type": "application/json",
+                            "HTTP-Referer": "https://threads-growth-saas.local",
+                            "X-Title": "Threads Growth SaaS",
+                        },
+                        json={
+                            "model": model_name,
+                            "messages": messages,
+                            "temperature": 0.85,
+                            "max_tokens": max_tokens,
+                        },
+                    )
+                    # 429/5xx: retry or fallback
+                    if resp.status_code in (429,) or (500 <= resp.status_code < 600):
+                        logger.warning(f"OpenRouter {label} ({model_name}) error {resp.status_code} (attempt {attempt+1}): {resp.text[:200]}")
+                        if attempt == 0:
+                            time.sleep(2 ** attempt)  # 1s then skip to fallback
+                            continue
+                        break  # skip to fallback after 1 retry
+                    if resp.status_code != 200:
+                        logger.error(f"OpenRouter {label} ({model_name}) non-retryable error {resp.status_code}: {resp.text[:300]}")
+                        raise RuntimeError(f"OpenRouter API error {resp.status_code}: {resp.text[:200]}")
+                    data = resp.json()
+                    text = data["choices"][0]["message"]["content"].strip()
+                    if label == "fallback":
+                        logger.info(f"Used fallback model {fallback} (primary {primary} failed)")
+                    return text
+            except httpx.TimeoutException:
+                logger.warning(f"OpenRouter {label} ({model_name}) timeout (attempt {attempt+1})")
+                if attempt == 0:
+                    continue  # retry once per model
+                break
+            except httpx.ConnectError as e:
+                logger.warning(f"OpenRouter {label} ({model_name}) connect error (attempt {attempt+1}): {e}")
+                if attempt == 0:
+                    continue
+                break
+            except Exception as e:
+                last_error = e
+                if attempt == 0:
+                    continue
+                break
+
+    raise RuntimeError(f"All LLM calls failed (primary={primary}, fallback={fallback}): {last_error or 'unknown'}")
 
 
 def _call_ai(messages: list, max_tokens: int = 512) -> str:

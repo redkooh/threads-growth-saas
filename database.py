@@ -124,6 +124,7 @@ class Account(Base):
     today_replies = Column(Integer, default=0)
     today_follows = Column(Integer, default=0)
     today_dms = Column(Integer, default=0)
+    last_reset_date = Column(String(10), default="")  # YYYY-MM-DD — set by scheduler on daily reset
     created_at = Column(DateTime, default=datetime.utcnow)
     user = relationship("User", back_populates="accounts")
     schedules = relationship("Schedule", back_populates="account", cascade="all, delete")
