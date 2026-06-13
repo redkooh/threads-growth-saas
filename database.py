@@ -1,31 +1,20 @@
-"""SaaS Database — SQLAlchemy models + SQLite (dev) / PostgreSQL (prod)."""
+"""SaaS Database — SQLAlchemy models + PostgreSQL."""
 import os, json
 from datetime import datetime, timedelta
 from sqlalchemy import create_engine, Column, Integer, String, Text, Boolean, DateTime, Float, JSON, ForeignKey
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
-from sqlalchemy.pool import StaticPool
 
-DB_TYPE = os.environ.get("SAAS_DB_TYPE", "sqlite")
+DB_USER = os.environ.get("SAAS_DB_USER", "saas_user")
+DB_PASS = os.environ.get("SAAS_DB_PASS", "")
+DB_HOST = os.environ.get("SAAS_DB_HOST", "/tmp")
+DB_PORT = os.environ.get("SAAS_DB_PORT", "5432")
+DB_NAME = os.environ.get("SAAS_DB_NAME", "threads_saas")
 
-if DB_TYPE == "postgresql":
-    DB_USER = os.environ.get("SAAS_DB_USER", "saas_user")
-    DB_PASS = os.environ.get("SAAS_DB_PASS", "")
-    DB_HOST = os.environ.get("SAAS_DB_HOST", "/tmp")
-    DB_PORT = os.environ.get("SAAS_DB_PORT", "5432")
-    DB_NAME = os.environ.get("SAAS_DB_NAME", "threads_saas")
-    if DB_HOST == "/tmp":
-        DB_URL = f"postgresql://{DB_USER}:{DB_PASS}@/{DB_NAME}?host={DB_HOST}"
-    else:
-        DB_URL = f"postgresql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-    engine = create_engine(DB_URL, pool_size=10, max_overflow=20)
+if DB_HOST == "/tmp":
+    DB_URL = f"postgresql://{DB_USER}:{DB_PASS}@/{DB_NAME}?host={DB_HOST}"
 else:
-    DB_PATH = os.environ.get("SAAS_DB", os.path.join(os.path.dirname(__file__) or ".", "saas.db"))
-    DB_URL = f"sqlite:///{DB_PATH}"
-    engine = create_engine(
-        DB_URL,
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
+    DB_URL = f"postgresql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+engine = create_engine(DB_URL, pool_size=10, max_overflow=20)
 
 SessionLocal = sessionmaker(bind=engine, autoflush=False)
 Base = declarative_base()
