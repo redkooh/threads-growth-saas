@@ -36,8 +36,8 @@ except ImportError:
 import urllib.request
 import time
 from collections import defaultdict
-from sqlalchemy import func, extract, text
-from database import User, Account, Schedule, Post, ContentPreset, ActivityLog, UsernameLock, init_db, get_db, get_account_limit, get_daily_limit
+from sqlalchemy import func, text
+from database import User, Account, Schedule, Post, ContentPreset, ActivityLog, UsernameLock, init_db, get_db
 from threads_login import login_threads, verify_cookies, ThreadsLoginError
 from setup_logging import init_logging, get_logger
 from ai import generate_thread, generate_reply, generate_fun_fact, learn_writing_style

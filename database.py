@@ -177,9 +177,5 @@ def get_db():
         db.close()
 
 
-def get_account_limit(plan: str) -> int:
-    return {"owner": 999, "starter": 1, "growth": 3, "agency": 15}.get(plan, 1)
-
-
 def get_daily_limit(plan: str) -> int:
     return {"owner": 99999, "starter": 60, "growth": 60, "agency": 60}.get(plan, 60)
