@@ -6,3 +6,4 @@ logs/
 cookies*.json
 meta*.json
 server.log
+*.db
