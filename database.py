@@ -45,14 +45,26 @@ class User(Base):
     reset_token = Column(String(255), default="")
     reset_token_expires = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    trial_expires_at = Column(DateTime, nullable=True)
     accounts = relationship("Account", back_populates="user", cascade="all, delete")
+
+
+class UsernameLock(Base):
+    """Permanent lock: once a Threads username is connected, it's locked forever across ALL users.
+    Even if the account is deleted, the username remains locked.
+    """
+    __tablename__ = "username_locks"
+    id = Column(Integer, primary_key=True)
+    username = Column(String(255), unique=True, nullable=False, index=True)  # e.g. "cristiano"
+    locked_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)  # who owns it
+    locked_at = Column(DateTime, default=datetime.utcnow)
 
 
 class Account(Base):
     __tablename__ = "accounts"
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    username = Column(String(255), default="")
+    username = Column(String(255), default="", unique=True)  # unique across all users — one account per username
     display_name = Column(String(255), default="")
     bio = Column(String(500), default="")
     link = Column(String(500), default="")
@@ -176,8 +188,8 @@ def get_db():
 
 
 def get_account_limit(plan: str) -> int:
-    return {"starter": 1, "growth": 3, "agency": 10}.get(plan, 1)
+    return {"owner": 999, "starter": 1, "growth": 3, "agency": 15}.get(plan, 1)
 
 
 def get_daily_limit(plan: str) -> int:
-    return {"starter": 60, "growth": 150, "agency": 500}.get(plan, 60)
+    return {"owner": 99999, "starter": 60, "growth": 60, "agency": 60}.get(plan, 60)

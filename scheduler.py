@@ -84,7 +84,7 @@ async def run_scheduler():
                 continue
 
             # ── Daily limit check ──
-            daily_limit = plan_cfg.get("max_posts_day", get_daily_limit(user.plan))
+            daily_limit = get_daily_limit(user.plan)  # 60/account regardless of plan
             today_used = account.today_threads + account.today_replies
             if today_used >= daily_limit:
                 sched.last_status = "daily_limit_reached"

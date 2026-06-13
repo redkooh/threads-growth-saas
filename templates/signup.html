@@ -9,108 +9,132 @@
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0f0f13;display:flex;align-items:center;justify-content:center;min-height:100vh;color:#e0e0e0;padding:20px}
 body::before{content:'';position:fixed;top:-50%;left:-50%;width:200%;height:200%;background:radial-gradient(circle at 70% 30%, rgba(168,85,247,0.08) 0%, transparent 50%),radial-gradient(circle at 30% 70%, rgba(236,72,153,0.06) 0%, transparent 50%);z-index:-1}
 
-.card{background:#1a1a24;border-radius:20px;padding:48px 40px;width:440px;max-width:100%;box-shadow:0 25px 80px rgba(0,0,0,0.5);border:1px solid #2a2a3a;position:relative;overflow:hidden}
+.card{background:#1a1a24;border-radius:20px;padding:44px 40px;width:420px;max-width:100%;box-shadow:0 25px 80px rgba(0,0,0,0.5);border:1px solid #2a2a3a;position:relative;overflow:hidden}
 .card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,#a855f7,#ec4899,transparent);opacity:0.6}
 
-.logo{font-size:22px;font-weight:800;margin-bottom:4px;background:linear-gradient(135deg,#a855f7,#ec4899);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.sub{color:#888;font-size:14px;margin-bottom:20px}
+.logo{font-size:22px;font-weight:800;margin-bottom:2px;background:linear-gradient(135deg,#a855f7,#ec4899);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.sub{color:#888;font-size:13px;margin-bottom:24px}
 
-.input-group{position:relative;margin-bottom:14px}
+/*── Inputs ──*/
+.input-group{position:relative;margin-bottom:16px}
 .input-group input{width:100%;padding:16px 16px 8px;border-radius:10px;border:1px solid #2a2a3a;background:#12121a;color:#e0e0e0;font-size:15px;outline:none;transition:border 0.2s;padding-top:20px}
 .input-group input:focus{border-color:#a855f7}
-.input-group label{position:absolute;left:16px;top:18px;font-size:15px;color:#555;pointer-events:none;transition:all 0.2s ease}
+.input-group input.error{border-color:#ef4444}
+.input-group label{position:absolute;left:16px;top:18px;font-size:15px;color:#555;pointer-events:none;transition:all 0.15s ease}
 .input-group input:focus + label,
 .input-group input:not(:placeholder-shown) + label{top:6px;font-size:11px;color:#a855f7}
 .input-group input::placeholder{color:transparent}
+.field-error{font-size:11px;color:#ef4444;margin-top:4px;display:none;padding-left:4px}
 
-/*── Password strength ──*/
-.pwd-strength{height:3px;border-radius:2px;margin:-8px 0 12px;background:#2a2a3a;overflow:hidden;transition:all 0.3s}
+/*── Password ──*/
+.pwd-strength{height:3px;border-radius:2px;margin:-10px 0 14px;background:#2a2a3a;overflow:hidden}
 .pwd-strength-bar{height:100%;width:0;border-radius:2px;transition:all 0.3s ease}
 .pwd-strength-bar.weak{width:33%;background:#ef4444}
 .pwd-strength-bar.medium{width:66%;background:#f59e0b}
 .pwd-strength-bar.strong{width:100%;background:#22c55e}
 
-/*── Plan selector ──*/
-.plans{display:flex;gap:8px;margin:16px 0 8px}
-.plan-opt{flex:1;padding:14px 10px;border-radius:12px;border:1px solid #2a2a3a;text-align:center;cursor:pointer;transition:all 0.2s;background:#12121a;position:relative}
-.plan-opt:hover{border-color:#3a3a4a}
-.plan-opt.selected{border-color:#a855f7;background:rgba(168,85,247,0.1);box-shadow:0 0 0 1px #a855f7}
-.plan-opt .pname{font-size:13px;font-weight:600}
-.plan-opt.selected .pname{color:#a855f7}
-.plan-opt .pprice{font-size:11px;color:#888;margin-top:2px}
-.plan-opt .pbadge{position:absolute;top:-8px;right:50%;transform:translateX(50%);background:linear-gradient(135deg,#a855f7,#ec4899);padding:2px 10px;border-radius:12px;font-size:10px;font-weight:600;color:white;white-space:nowrap}
-.plan-opt input{display:none}
+/*── Plan card ──*/
+.plan-card{margin:16px 0 20px;background:#12121a;border:1px solid #a855f7;border-radius:14px;padding:18px 20px;display:flex;align-items:center;gap:14px;box-shadow:0 0 0 1px #a855f7}
+.plan-card .plan-icon{width:44px;height:44px;border-radius:12px;background:rgba(168,85,247,0.15);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.plan-card .plan-info{flex:1}
+.plan-card .plan-name{font-size:15px;font-weight:700;color:#e0e0e0}
+.plan-card .plan-price{font-size:12px;color:#888;margin-top:1px}
+.plan-card .plan-badge{font-size:10px;background:rgba(34,197,94,0.15);color:#22c55e;padding:2px 8px;border-radius:8px;font-weight:600}
+.plan-card .plan-upgrade{font-size:12px;color:#555;margin-top:3px}
+.plan-card .plan-upgrade a{color:#a855f7;text-decoration:none;font-weight:500}
+.plan-card .plan-upgrade a:hover{text-decoration:underline}
 
 /*── Submit ──*/
-.submit-btn{width:100%;padding:14px;border-radius:10px;border:none;background:linear-gradient(135deg,#a855f7,#ec4899);color:white;font-size:16px;font-weight:600;cursor:pointer;transition:all 0.2s;position:relative;overflow:hidden;margin-top:8px}
+.submit-btn{width:100%;padding:14px;border-radius:10px;border:none;background:linear-gradient(135deg,#a855f7,#ec4899);color:white;font-size:15px;font-weight:600;cursor:pointer;transition:all 0.2s;position:relative;overflow:hidden;margin-top:4px}
 .submit-btn:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(168,85,247,0.3)}
 .submit-btn:active{transform:translateY(0)}
 .submit-btn.loading{color:transparent;pointer-events:none}
 .submit-btn.loading::after{content:'';position:absolute;top:50%;left:50%;width:20px;height:20px;margin:-10px 0 0 -10px;border:2px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;animation:spin 0.6s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 
-.error{color:#ef4444;font-size:13px;margin-top:8px;text-align:center;display:none}
+.error{color:#ef4444;font-size:13px;margin-top:10px;text-align:center;display:none}
 .footer{text-align:center;margin-top:16px;font-size:13px;color:#555}
 .footer a{color:#a855f7;text-decoration:none;font-weight:500}
 .footer a:hover{text-decoration:underline}
+
+/*── Success ──*/
+.success-state{display:none;text-align:center;padding:20px 0}
+.success-state .icon{font-size:52px;margin-bottom:12px}
+.success-state h2{font-size:20px;font-weight:700;margin-bottom:6px}
+.success-state p{color:#888;font-size:14px;line-height:1.6;margin-bottom:4px}
+.success-state .email-display{color:#a855f7;font-weight:600}
+.success-state .resend-link{color:#a855f7;text-decoration:none;font-weight:500;font-size:13px;cursor:pointer}
+.success-state .resend-link:hover{text-decoration:underline}
+.success-state .resend-link.sent{color:#22c55e}
+
+/*── Checkbox ──*/
+.terms-row{display:flex;align-items:flex-start;gap:8px;margin:16px 0 20px;font-size:12px;color:#666;line-height:1.4}
+.terms-row input{accent-color:#a855f7;width:16px;height:16px;margin-top:1px;flex-shrink:0;cursor:pointer}
+.terms-row a{color:#a855f7;text-decoration:none}
+.terms-row a:hover{text-decoration:underline}
+
+@media(max-width:480px){
+  .card{padding:32px 24px}
+}
 </style>
 </head>
 <body>
 <div class="card">
   <div class="logo">Threads Growth</div>
-  <div class="sub">Start growing — free trial, no credit card</div>
-  <form onsubmit="event.preventDefault(); signup();">
+  <div class="sub">3-day free trial · no credit card needed</div>
+
+  <form onsubmit="event.preventDefault(); signup();" id="signupForm">
     <div class="input-group">
       <input type="text" id="name" placeholder=" " autocomplete="name">
       <label for="name">Your name</label>
     </div>
+
     <div class="input-group">
       <input type="email" id="email" placeholder=" " required autocomplete="email">
-      <label for="email">Email</label>
+      <label for="email">Email address</label>
+      <div class="field-error" id="emailError">Please enter a valid email</div>
     </div>
+
     <div class="input-group pwd-wrap">
       <input type="password" id="password" placeholder=" " required oninput="checkPwdStrength(this.value)">
       <label for="password">Password</label>
+      <div class="field-error" id="pwdError">At least 6 characters</div>
     </div>
     <div class="pwd-strength"><div class="pwd-strength-bar" id="pwdBar"></div></div>
 
-    <div style="font-size:13px;color:#888;margin-bottom:4px">Choose your plan</div>
-    <div class="plans" id="planSelector">
-      <label class="plan-opt selected" onclick="selectPlan('starter',this)">
-        <input type="radio" name="plan" value="starter" checked>
-        <div class="pname">Starter</div>
-        <div class="pprice">$10/mo</div>
-      </label>
-      <label class="plan-opt" onclick="selectPlan('growth',this)">
-        <input type="radio" name="plan" value="growth">
-        <div class="pbadge">Popular</div>
-        <div class="pname">Growth</div>
-        <div class="pprice">$25/mo</div>
-      </label>
-      <label class="plan-opt" onclick="selectPlan('agency',this)">
-        <input type="radio" name="plan" value="agency">
-        <div class="pname">Agency</div>
-        <div class="pprice">$80/mo</div>
-      </label>
+    <div class="plan-card">
+      <div class="plan-icon">🚀</div>
+      <div class="plan-info">
+        <div class="plan-name">Starter · $10/mo</div>
+        <div class="plan-price">1 Threads account · Full features</div>
+        <div class="plan-badge">3 days free</div>
+        <div class="plan-upgrade">Need more? <a href="/pricing">upgrade later</a></div>
+      </div>
     </div>
 
-    <button type="submit" class="submit-btn" id="signupBtn">Create Account</button>
+    <div class="terms-row">
+      <input type="checkbox" id="terms" checked>
+      <label for="terms">I agree to the <a href="/terms">Terms of Service</a> and <a href="/privacy">Privacy Policy</a></label>
+    </div>
+
+    <button type="submit" class="submit-btn" id="signupBtn">Create your account</button>
     <div class="error" id="error"></div>
   </form>
-  <div id="success" style="display:none;text-align:center">
-    <div style="font-size:48px;margin-bottom:12px">📬</div>
-    <div style="font-size:18px;font-weight:700;margin-bottom:8px">Check your email</div>
-    <div style="color:#888;font-size:14px;line-height:1.6">We sent a verification link to<br><strong id="verifyEmail" style="color:#a855f7"></strong></div>
-    <div style="margin-top:16px;font-size:13px;color:#555">Didn't get it? <a href="#" onclick="resendVerification()" style="color:#a855f7;text-decoration:none;font-weight:500">Resend</a></div>
+
+  <div class="success-state" id="successState">
+    <div class="icon">📬</div>
+    <h2>Verify your email</h2>
+    <p>We sent a verification link to<br><span class="email-display" id="verifyEmail"></span></p>
+    <p style="font-size:12px;color:#555;margin-top:8px">Click the link in the email to activate your account.</p>
+    <div style="margin-top:16px">
+      <span class="resend-link" id="resendLink" onclick="resendVerification()">Resend email</span>
+    </div>
   </div>
+
   <div class="footer">Already have an account? <a href="/login">Sign in</a></div>
 </div>
+
 <script>
-function selectPlan(val, el){
-  document.querySelectorAll('#planSelector .plan-opt').forEach(l=>l.classList.remove('selected'));
-  el.classList.add('selected');
-  document.querySelector('#planSelector input[value="'+val+'"]').checked=true;
-}
 function checkPwdStrength(v){
   const bar=document.getElementById('pwdBar');
   bar.className='pwd-strength-bar';
@@ -125,44 +149,62 @@ function checkPwdStrength(v){
   else if(score<=3)bar.className='pwd-strength-bar medium';
   else bar.className='pwd-strength-bar strong';
 }
+
 async function signup(){
   const btn=document.getElementById('signupBtn');
+  const email=document.getElementById('email').value.trim();
+  const password=document.getElementById('password').value;
+  const name=document.getElementById('name').value.trim();
+
+  // Validation
+  let valid=true;
+  document.querySelectorAll('.field-error').forEach(e=>e.style.display='none');
+  document.querySelectorAll('input.error').forEach(e=>e.classList.remove('error'));
+
+  if(!email || !email.includes('@')){
+    document.getElementById('emailError').style.display='block';
+    document.getElementById('email').classList.add('error');
+    valid=false;
+  }
+  if(password.length<6){
+    document.getElementById('pwdError').style.display='block';
+    document.getElementById('password').classList.add('error');
+    valid=false;
+  }
+  if(!valid) return;
+
   btn.classList.add('loading');
   document.getElementById('error').style.display='none';
   try{
-    const plan=document.querySelector('#planSelector input:checked')?.value||'starter';
-    const r=await fetch('/api/auth/signup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:document.getElementById('name').value,email:document.getElementById('email').value,password:document.getElementById('password').value,plan})});
+    const r=await fetch('/api/auth/signup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,email,password,plan:'starter'})});
     const d=await r.json();
     if(d.ok){
-      document.querySelector('form').style.display='none';
-      document.getElementById('success').style.display='block';
-      document.getElementById('verifyEmail').textContent=d.email||document.getElementById('email').value;
-      // If paid plan, redirect to Stripe checkout after a moment
-      if (plan !== 'starter') {
-        setTimeout(async () => {
-          try {
-            const cr = await fetch('/api/billing/create-checkout', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({plan})});
-            const cd = await cr.json();
-            if (cd.url) window.location.href = cd.url;
-          } catch(e) {}
-        }, 1500);
-      }
+      document.getElementById('signupForm').style.display='none';
+      const st=document.getElementById('successState');
+      st.style.display='block';
+      document.getElementById('verifyEmail').textContent=email;
       return
     }
     const el=document.getElementById('error');el.textContent=d.error||'Signup failed';el.style.display='block';
-  }catch(e){const el=document.getElementById('error');el.textContent='Network error';el.style.display='block'}
+  }catch(e){const el=document.getElementById('error');el.textContent='Network error. Please try again.';el.style.display='block'}
   btn.classList.remove('loading');
 }
+
 async function resendVerification(){
   const email=document.getElementById('verifyEmail').textContent;
   if(!email)return;
-  const el=document.querySelector('#success div:last-child a');
+  const el=document.getElementById('resendLink');
   el.textContent='Sending...';
+  el.style.pointerEvents='none';
   try{
     await fetch('/api/auth/resend-verification',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});
-    el.textContent='Sent!';
-    setTimeout(()=>{el.textContent='Resend'},3000);
-  }catch(e){el.textContent='Failed';setTimeout(()=>{el.textContent='Resend'},3000)}
+    el.textContent='✅ Sent!';
+    el.classList.add('sent');
+    setTimeout(()=>{el.textContent='Resend email';el.style.pointerEvents='';el.classList.remove('sent')},3000);
+  }catch(e){
+    el.textContent='Failed — try again';
+    setTimeout(()=>{el.textContent='Resend email';el.style.pointerEvents=''},3000);
+  }
 }
 </script>
 </body>

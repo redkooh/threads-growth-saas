@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Owner Dashboard — Threads Growth</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a0f;color:#e0e0e0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;padding:24px 32px}
+h1{font-size:22px;font-weight:700;background:linear-gradient(135deg,#a855f7,#ec4899);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:6px}
+.subtitle{font-size:13px;color:#555;margin-bottom:16px}
+.top-bar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px}
+.refresh-btn{padding:6px 14px;border-radius:8px;border:1px solid #2a2a3a;background:transparent;color:#888;cursor:pointer;font-size:12px}
+.refresh-btn:hover{border-color:#a855f7;color:#a855f7}
+.stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:16px}
+.stat-card{background:#12121a;border:1px solid #222234;border-radius:10px;padding:14px 16px;position:relative}
+.stat-card .val{font-size:24px;font-weight:800}
+.stat-card .lbl{font-size:11px;color:#888;margin-top:2px}
+.stat-card .sub{font-size:10px;color:#555;margin-top:1px}
+.stat-card.warning{border-color:rgba(234,179,8,0.3)}
+.stat-card.danger{border-color:rgba(239,68,68,0.3)}
+.mrr{color:#22c55e}
+.trial-ok{color:#22c55e}
+.trial-warn{color:#eab308}
+.trial-expired{color:#ef4444}
+.plans-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.plan-card{background:#12121a;border:1px solid #222234;border-radius:10px;padding:12px 16px;flex:1;min-width:100px;text-align:center}
+.plan-card .pname{font-size:12px;color:#888;margin-bottom:4px}
+.plan-card .pcount{font-size:22px;font-weight:700}
+.plan-card .pcount.starter{color:#22c55e}
+.plan-card .pcount.growth{color:#a855f7}
+.plan-card .pcount.agency{color:#ec4899}
+.alert-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.alert-card{display:flex;align-items:center;gap:12px;padding:12px 18px;border-radius:10px;font-size:13px;flex:1;min-width:200px}
+.alert-card.warn{background:rgba(234,179,8,0.1);border:1px solid rgba(234,179,8,0.2);color:#eab308}
+.alert-card.danger{background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);color:#ef4444}
+.alert-card.ok{background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);color:#22c55e}
+.alert-card .alert-num{font-size:24px;font-weight:800}
+.tabs{display:flex;gap:2px;margin-bottom:12px;border-bottom:1px solid #222234}
+.tab{padding:10px 18px;font-size:13px;color:#888;cursor:pointer;border-bottom:2px solid transparent;transition:all 0.2s}
+.tab:hover{color:#e0e0e0}
+.tab.active{color:#a855f7;border-bottom-color:#a855f7}
+.tab-content{display:none}
+.tab-content.active{display:block}
+table{width:100%;border-collapse:collapse;font-size:13px;background:#12121a;border-radius:10px;overflow:hidden;margin-bottom:16px}
+th{text-align:left;padding:10px 14px;font-size:11px;color:#555;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #222234;background:#0f0f13}
+td{padding:10px 14px;border-bottom:1px solid #1a1a24;color:#aaa}
+tr{cursor:pointer}
+tr:hover td{background:#1e1e2a}
+tr:last-child td{border-bottom:none}
+.badge{display:inline-block;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:600}
+.badge-active{background:rgba(34,197,94,0.15);color:#22c55e}
+.badge-paused{background:rgba(239,68,68,0.15);color:#ef4444}
+.badge-starter{background:rgba(34,197,94,0.1);color:#22c55e}
+.badge-owner{background:linear-gradient(135deg,#f59e0b,#ef4444);color:white}
+.badge-growth{background:rgba(168,85,247,0.1);color:#a855f7}
+.badge-agency{background:rgba(236,72,153,0.1);color:#ec4899}
+.badge-verified{background:rgba(59,130,246,0.1);color:#3b82f6}
+.badge-unverified{background:rgba(239,68,68,0.1);color:#ef4444}
+.status-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px}
+.dot-active{background:#22c55e}
+.dot-paused{background:#ef4444}
+.activity-feed{max-height:500px;overflow-y:auto;background:#12121a;border:1px solid #222234;border-radius:10px;padding:4px 0}
+.activity-item{display:flex;gap:10px;padding:8px 14px;border-bottom:1px solid #1a1a24;font-size:13px}
+.activity-item:last-child{border-bottom:none}
+.activity-time{font-size:11px;color:#555;white-space:nowrap;min-width:110px}
+.activity-action{color:#a855f7;font-weight:500;min-width:80px}
+.activity-detail{color:#888}
+.activity-user{color:#555;min-width:90px}
+
+/* Modal */
+.modal-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.75);z-index:1000;align-items:center;justify-content:center;backdrop-filter:blur(2px)}
+.modal-overlay.show{display:flex}
+.modal-box{background:#1a1a24;border-radius:16px;padding:28px 32px;width:500px;max-width:92vw;border:1px solid #2a2a3a;max-height:85vh;overflow-y:auto}
+.modal-box h2{font-size:18px;margin-bottom:4px}
+.modal-box .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0}
+.modal-box .info-item{padding:10px 12px;background:#12121a;border-radius:8px}
+.modal-box .info-item .ilabel{font-size:11px;color:#555}
+.modal-box .info-item .ival{font-size:14px;font-weight:600;margin-top:2px}
+.modal-box .info-item.span2{grid-column:span 2}
+.modal-btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.modal-btn{padding:8px 16px;border-radius:8px;border:none;font-size:13px;font-weight:500;cursor:pointer;transition:all 0.2s}
+.modal-btn.primary{background:linear-gradient(135deg,#a855f7,#ec4899);color:white}
+.modal-btn.secondary{background:rgba(59,130,246,0.15);color:#3b82f6;border:1px solid rgba(59,130,246,0.3)}
+.modal-btn.danger{background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3)}
+.modal-btn.success{background:rgba(34,197,94,0.15);color:#22c55e;border:1px solid rgba(34,197,94,0.3)}
+.modal-btn.cancel{background:transparent;color:#888;border:1px solid #2a2a3a}
+.modal-btn:hover{opacity:0.85}
+.plan-select{width:100%;padding:8px 12px;border-radius:8px;border:1px solid #2a2a3a;background:#12121a;color:#e0e0e0;font-size:13px;outline:none;margin-top:8px}
+.toast{position:fixed;top:20px;right:20px;padding:10px 18px;border-radius:8px;font-size:13px;color:white;z-index:9999;transform:translateX(120%);opacity:0;transition:all 0.3s}
+.toast.show{transform:translateX(0);opacity:1}
+.toast.success{background:#16a34a}
+.toast.error{background:#dc2626}
+@media(max-width:768px){
+  body{padding:12px 16px}
+  .stats{grid-template-columns:repeat(2,1fr)}
+  .stat-card .val{font-size:20px}
+  table{font-size:12px}
+  th,td{padding:8px 10px}
+  .modal-box{padding:20px;width:auto}
+}
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <div>
+    <h1>🔐 Owner Dashboard</h1>
+    <div class="subtitle">growpilotgpt.com — oversee everything</div>
+  </div>
+  <div style="display:flex;gap:8px">
+    <button class="refresh-btn" onclick="exportCSV()">📥 Export CSV</button>
+    <button class="refresh-btn" onclick="loadAll()">↻ Refresh</button>
+  </div>
+</div>
+
+<div class="stats" id="statsRow"></div>
+<div class="plans-row" id="plansRow"></div>
+<div class="alert-row" id="alertRow"></div>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab(this,'users')">👤 Users</div>
+  <div class="tab" onclick="switchTab(this,'accounts')">📱 Accounts</div>
+  <div class="tab" onclick="switchTab(this,'activity')">📋 Activity</div>
+</div>
+
+<div class="tab-content active" id="tab-users">
+  <div style="margin-bottom:8px;display:flex;gap:8px;font-size:12px;color:#555;flex-wrap:wrap;align-items:center">
+    <input id="userSearch" placeholder="Search email or name..." oninput="filterUsers()" style="padding:6px 10px;border-radius:6px;border:1px solid #222234;background:#0f0f13;color:#e0e0e0;font-size:12px;outline:none;width:240px">
+    <span id="userCount" style="color:#555;font-size:11px"></span>
+  </div>
+  <div style="overflow-x:auto">
+    <table><thead><tr>
+      <th>ID</th><th>User</th><th>Plan</th><th>Status</th><th>Verified</th><th>Trial</th><th>Accts</th><th>Posts</th><th>Today</th><th>Joined</th>
+    </tr></thead><tbody id="usersBody"></tbody></table>
+  </div>
+</div>
+
+<div class="tab-content" id="tab-accounts">
+  <div style="overflow-x:auto">
+    <table><thead><tr>
+      <th>ID</th><th>Username</th><th>User ID</th><th>Niche</th><th>Active</th><th>🧵 Today</th><th>💬 Today</th><th>👥 Today</th><th>Schedules</th><th>Created</th>
+    </tr></thead><tbody id="accountsBody"></tbody></table>
+  </div>
+</div>
+
+<div class="tab-content" id="tab-activity">
+  <div class="activity-feed" id="activityFeed"></div>
+</div>
+
+<!-- User Detail Modal -->
+<div class="modal-overlay" id="userModal">
+  <div class="modal-box">
+    <h2 id="modalTitle">User Details</h2>
+    <div class="info-grid" id="modalInfo"></div>
+
+    <label style="font-size:12px;color:#888;display:block;margin-top:6px">Change Plan:</label>
+    <select class="plan-select" id="modalPlanSelect">
+      <option value="starter">Starter</option>
+      <option value="growth">Growth</option>
+      <option value="agency">Agency</option>
+    </select>
+
+    <div class="modal-btns">
+      <button class="modal-btn primary" onclick="doToggleUser()">🔁 Toggle Status</button>
+      <button class="modal-btn success" onclick="doSetPlan()">💾 Set Plan</button>
+      <button class="modal-btn secondary" onclick="doResendVerify()">📧 Re-send Verify</button>
+      <button class="modal-btn danger" onclick="doDeleteUser()">🗑️ Delete</button>
+      <button class="modal-btn cancel" onclick="closeUserModal()">Close</button>
+    </div>
+    <div id="modalResult" style="margin-top:8px;font-size:12px"></div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+async function api(path, opts = {}) {
+  const r = await fetch(path, {headers:{'Content-Type':'application/json'},...opts});
+  if (!r.ok) throw new Error((await r.text()).slice(0,120));
+  return r.json();
+}
+
+function fmtDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-US', {month:'short', day:'numeric'});
+}
+
+function fmtDateTime(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleString('en-US', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
+}
+
+function toast(msg, type='success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast ' + type + ' show';
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+function tip(text) {
+  const id = 'tip-' + Math.random().toString(36).slice(2,6);
+  return `<span class="help-tip" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#2a2a3a;color:#888;font-size:9px;cursor:help;position:relative;flex-shrink:0;margin-left:2px;vertical-align:middle">?<span style="display:none;position:absolute;bottom:calc(100% + 4px);left:50%;transform:translateX(-50%);background:#12121a;border:1px solid #2a2a3a;color:#aaa;font-size:10px;padding:6px 10px;border-radius:6px;white-space:normal;z-index:100;width:180px;text-align:center;font-weight:400">${text}</span></span>`;
+}
+
+async function loadAll() {
+  try {
+    const [stats, users, accounts, activity] = await Promise.all([
+      api('/api/owner/stats'),
+      api('/api/owner/users'),
+      api('/api/owner/accounts'),
+      api('/api/owner/activity'),
+    ]);
+
+    document.getElementById('statsRow').innerHTML = `
+      <div class="stat-card"><div class="val">${stats.total_users}</div><div class="lbl">Total Users ${tip('All registered accounts')}</div><div class="sub">${stats.signups_7d} this week</div></div>
+      <div class="stat-card"><div class="val mrr">$${stats.monthly_recurring}</div><div class="lbl">MRR ${tip('Monthly Recurring Revenue')}</div><div class="sub">${stats.active_users} active</div></div>
+      <div class="stat-card ${stats.trial_active > 0 ? '' : 'warning'}"><div class="val ${stats.trial_active > 0 ? 'trial-ok' : ''}">${stats.trial_active}</div><div class="lbl">On Trial</div><div class="sub">${stats.trial_expired} expired</div></div>
+      <div class="stat-card"><div class="val">${stats.total_accounts}</div><div class="lbl">Threads Accounts</div><div class="sub">${stats.active_accounts} active · ${stats.paused_accounts} paused</div></div>
+      <div class="stat-card"><div class="val">${stats.posts_today}</div><div class="lbl">Posts Today</div><div class="sub">${stats.activity_today} total actions</div></div>
+      <div class="stat-card"><div class="val">${stats.verified}</div><div class="lbl">Email Verified</div><div class="sub">${stats.unverified} unverified</div></div>
+      <div class="stat-card"><div class="val">${stats.paused_users}</div><div class="lbl">Paused Users</div><div class="sub">${Math.round(stats.paused_users/stats.total_users*100)||0}% of total</div></div>
+      <div class="stat-card"><div class="val">${stats.active_schedules}/${stats.total_schedules}</div><div class="lbl">Schedules</div><div class="sub">${stats.total_schedules > 0 ? Math.round(stats.active_schedules/stats.total_schedules*100) + '% active' : 'none'}</div></div>
+    `;
+
+    const plansHtml = Object.entries(stats.plans).map(([plan, count]) => `
+      <div class="plan-card">
+        <div class="pname">${plan.charAt(0).toUpperCase() + plan.slice(1)}</div>
+        <div class="pcount ${plan}">${count}</div>
+        <div style="font-size:10px;color:#555">$${plan==='starter'?10:plan==='growth'?25:80}/mo</div>
+      </div>
+    `).join('');
+    document.getElementById('plansRow').innerHTML = plansHtml;
+
+    document.getElementById('alertRow').innerHTML = `
+      ${stats.at_risk_trial > 0 ? `<div class="alert-card warn"><span class="alert-num">${stats.at_risk_trial}</span> Trial expiring within 2 days ${tip('Users whose 3-day trial ends soon — upgrade chance')}</div>` : ''}
+      ${stats.trial_expired > 0 ? `<div class="alert-card danger"><span class="alert-num">${stats.trial_expired}</span> Trials expired — lost unless upgraded ${tip('These users are now locked out')}</div>` : ''}
+      ${stats.unverified > 0 ? `<div class="alert-card warn"><span class="alert-num">${stats.unverified}</span> Emails not verified ${tip('Click user → resend verification')}</div>` : ''}
+      ${stats.at_risk_trial === 0 && stats.trial_expired === 0 && stats.unverified === 0 ? `<div class="alert-card ok">✅ Everything looks healthy</div>` : ''}
+    `;
+
+    const usersHtml = users.map(u => {
+      const trialBadge = u.trial_days_left !== null
+        ? (u.trial_days_left === 0 ? `<span class="badge badge-paused">Expired</span>` : `<span class="badge badge-active">${u.trial_days_left}d left</span>`)
+        : `<span class="badge" style="background:rgba(85,85,85,0.1);color:#555">—</span>`;
+      return `<tr onclick="openUserModal(${u.id})">
+        <td style="color:#555">${u.id}</td>
+        <td><strong style="color:#e0e0e0">${esc(u.name)}</strong><br><span style="font-size:11px;color:#555">${esc(u.email)}</span></td>
+        <td><span class="badge badge-${u.plan}">${u.plan}</span></td>
+        <td><span class="status-dot dot-${u.status}"></span>${u.status}</td>
+        <td><span class="badge ${u.email_verified ? 'badge-verified' : 'badge-unverified'}">${u.email_verified ? '✅' : '⏳'}</span></td>
+        <td>${trialBadge}</td>
+        <td>${u.active_accounts}/${u.accounts}</td>
+        <td>${u.total_posts}</td>
+        <td>${u.posts_today}</td>
+        <td style="color:#555;font-size:11px">${fmtDate(u.created_at)}</td>
+      </tr>`;
+    }).join('');
+    document.getElementById('usersBody').innerHTML = usersHtml;
+    document.getElementById('userCount').textContent = `${users.length} users`;
+    window._usersData = users;
+
+    const acctsHtml = accounts.map(a => `
+      <tr>
+        <td style="color:#555">${a.id}</td>
+        <td><strong style="color:#e0e0e0">@${esc(a.username)}</strong>${a.display_name ? `<br><span style="font-size:11px;color:#555">${esc(a.display_name)}</span>` : ''}</td>
+        <td style="color:#555;font-size:11px">${a.user_id}</td>
+        <td><span class="badge" style="background:rgba(168,85,247,0.1);color:#a855f7">${a.niche}</span></td>
+        <td><span class="status-dot ${a.active ? 'dot-active' : 'dot-paused'}"></span>${a.active ? 'Active' : 'Paused'}</td>
+        <td>${a.today_threads}</td>
+        <td>${a.today_replies}</td>
+        <td>${a.today_follows}</td>
+        <td>${a.active_schedules}/${a.schedules}</td>
+        <td style="color:#555;font-size:11px">${fmtDate(a.created_at)}</td>
+      </tr>
+    `).join('');
+    document.getElementById('accountsBody').innerHTML = acctsHtml;
+
+    const activityHtml = activity.map(a => `
+      <div class="activity-item">
+        <span class="activity-time">${fmtDateTime(a.posted_at)}</span>
+        <span class="activity-user">@${esc(a.account_username)}</span>
+        <span class="activity-action">${a.action}</span>
+        <span class="activity-detail">${esc(a.detail || '')}</span>
+      </div>
+    `).join('');
+    document.getElementById('activityFeed').innerHTML = activityHtml || '<div style="color:#555;text-align:center;padding:24px">No activity yet</div>';
+  } catch(e) {
+    document.getElementById('statsRow').innerHTML = `<div style="color:#ef4444;grid-column:1/-1">Failed to load: ${e.message}</div>`;
+  }
+}
+
+// ── User Modal ──
+let _modalUserId = null;
+
+async function openUserModal(userId) {
+  _modalUserId = userId;
+  document.getElementById('userModal').classList.add('show');
+  document.getElementById('modalResult').textContent = '';
+  try {
+    const u = await api('/api/owner/user/' + userId);
+    document.getElementById('modalTitle').textContent = `👤 ${esc(u.name)}`;
+    document.getElementById('modalPlanSelect').value = u.plan;
+    document.getElementById('modalInfo').innerHTML = `
+      <div class="info-item span2"><div class="ilabel">Email</div><div class="ival">${esc(u.email)}</div></div>
+      <div class="info-item"><div class="ilabel">Plan</div><div class="ival">${u.plan}</div></div>
+      <div class="info-item"><div class="ilabel">Status</div><div class="ival"><span class="status-dot dot-${u.status}"></span>${u.status}</div></div>
+      <div class="info-item"><div class="ilabel">Email Verified</div><div class="ival">${u.email_verified ? '✅ Yes' : '⏳ No'}</div></div>
+      <div class="info-item"><div class="ilabel">Trial</div><div class="ival">${u.trial_days_left !== null ? (u.trial_days_left === 0 ? '⚠️ Expired' : u.trial_days_left + 'd left') : '—'}</div></div>
+      <div class="info-item"><div class="ilabel">Joined</div><div class="ival">${fmtDate(u.created_at)}</div></div>
+      <div class="info-item"><div class="ilabel">Accounts</div><div class="ival">${u.active_accounts}/${u.accounts} active</div></div>
+      <div class="info-item"><div class="ilabel">Posts</div><div class="ival">${u.total_posts} total · ${u.posts_today} today</div></div>
+      ${u.account_list && u.account_list.length ? `<div class="info-item span2"><div class="ilabel">Threads Accounts</div><div class="ival" style="font-size:12px">${u.account_list.map(a => `@${a.username} (${a.niche}) ${a.active ? '✅' : '⏸️'}`).join('<br>')}</div></div>` : ''}
+    `;
+  } catch(e) {
+    document.getElementById('modalInfo').innerHTML = `<div style="color:#ef4444">Failed to load user: ${e.message}</div>`;
+  }
+}
+
+function closeUserModal() {
+  document.getElementById('userModal').classList.remove('show');
+  _modalUserId = null;
+}
+
+async function doToggleUser() {
+  if (!_modalUserId) return;
+  try {
+    const r = await api('/api/owner/user/' + _modalUserId + '/toggle', {method:'POST'});
+    toast('User status → ' + r.status);
+    openUserModal(_modalUserId);
+    loadAll();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function doSetPlan() {
+  if (!_modalUserId) return;
+  const plan = document.getElementById('modalPlanSelect').value;
+  try {
+    const r = await api('/api/owner/user/' + _modalUserId + '/set-plan?plan=' + plan, {method:'POST'});
+    toast('Plan changed to ' + r.plan);
+    openUserModal(_modalUserId);
+    loadAll();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function doResendVerify() {
+  if (!_modalUserId) return;
+  try {
+    const r = await api('/api/owner/user/' + _modalUserId + '/verify', {method:'POST'});
+    toast(r.sent ? 'Verification email sent' : 'Failed to send email', r.sent ? 'success' : 'error');
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function doDeleteUser() {
+  if (!_modalUserId) return;
+  if (!confirm('⚠️ Permanently delete this user and ALL their data?')) return;
+  try {
+    const r = await api('/api/owner/user/' + _modalUserId + '/delete');
+    toast('Deleted: ' + r.deleted);
+    closeUserModal();
+    loadAll();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+// ── Tab ──
+function switchTab(el, name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+}
+
+// ── Search ──
+function filterUsers() {
+  const q = document.getElementById('userSearch').value.toLowerCase();
+  const users = window._usersData || [];
+  const rows = document.querySelectorAll('#usersBody tr');
+  users.forEach((u, i) => {
+    const match = u.email.toLowerCase().includes(q) || u.name.toLowerCase().includes(q);
+    if (rows[i]) rows[i].style.display = match ? '' : 'none';
+  });
+}
+
+// ── CSV Export ──
+function exportCSV() {
+  const users = window._usersData || [];
+  if (!users.length) return toast('No user data to export', 'error');
+  let csv = 'ID,Email,Name,Plan,Status,Verified,Trial Days Left,Accounts,Active Accounts,Total Posts,Posts Today,Joined\n';
+  users.forEach(u => {
+    csv += `${u.id},"${u.email}","${u.name}",${u.plan},${u.status},${u.email_verified},${u.trial_days_left !== null ? u.trial_days_left : ''},${u.accounts},${u.active_accounts},${u.total_posts},${u.posts_today},${u.created_at || ''}\n`;
+  });
+  const blob = new Blob([csv], {type:'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'subscribers-' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click();
+  toast('CSV exported');
+}
+
+function esc(s) {
+  if (!s) return '';
+  return String(s).replace(/[&<>"']/g, function(m) {
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m];
+  });
+}
+
+loadAll();
+setInterval(loadAll, 30000);
+</script>
+</body>
+</html>

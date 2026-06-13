@@ -12,7 +12,7 @@ SMTP_PORT = int(os.environ.get("SMTP_PORT", "465"))
 SMTP_USER = os.environ.get("SMTP_USER", "growpilotgpt@gmail.com")
 SMTP_PASS = os.environ.get("SMTP_PASS", "pxfg jqbl eqqp qfpv")
 
-BASE_URL = "https://threadsgrowth.app"
+BASE_URL = os.environ.get("SITE_URL", "https://growpilotgpt.com").rstrip("/")
 FROM_NAME = "Threads Growth"
 FROM_EMAIL = SMTP_USER
 

@@ -960,11 +960,25 @@ async function loadAll() {
   try {
     const me = await api('/api/me');
     document.getElementById('userEmail').textContent = me.email;
-    document.getElementById('userPlan').textContent = me.plan;
+    document.getElementById('userPlan').textContent = me.plan === 'owner' ? '👑 Owner' : me.plan;
     document.getElementById('settingsEmail').textContent = me.email;
     document.getElementById('settingsPlan').textContent = me.plan_config.name;
     document.getElementById('settingsPlanFee').textContent = me.plan_config.price;
     document.getElementById('tzBadge').textContent = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+    // ── Trial banner ──
+    if (me.trial_expires_at) {
+      const trialBanner = document.createElement('div');
+      trialBanner.id = 'trialBanner';
+      if (me.trial_expired) {
+        trialBanner.innerHTML = `<div style="background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);border-radius:10px;padding:12px 20px;margin-bottom:16px;font-size:13px;color:#ef4444;display:flex;align-items:center;gap:12px">⚠️ Your 3-day free trial has ended. Upgrade to keep your accounts running. <a href="/pricing" style="color:white;background:#ef4444;padding:6px 16px;border-radius:8px;text-decoration:none;font-weight:600;margin-left:auto;white-space:nowrap">Upgrade Now</a></div>`;
+      } else if (me.trial_days_left <= 1) {
+        trialBanner.innerHTML = `<div style="background:rgba(234,179,8,0.15);border:1px solid rgba(234,179,8,0.3);border-radius:10px;padding:12px 20px;margin-bottom:16px;font-size:13px;color:#eab308;display:flex;align-items:center;gap:12px">⏳ Your free trial ends in <strong>${me.trial_days_left} day${me.trial_days_left === 1 ? '' : 's'}</strong> — upgrade to keep growing. <a href="/pricing" style="color:white;background:#eab308;padding:6px 16px;border-radius:8px;text-decoration:none;font-weight:600;margin-left:auto;white-space:nowrap">Upgrade</a></div>`;
+      } else {
+        trialBanner.innerHTML = `<div style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);border-radius:10px;padding:12px 20px;margin-bottom:16px;font-size:13px;color:#22c55e;display:flex;align-items:center;gap:12px">🎉 <strong>${me.trial_days_left} days</strong> left in your free trial. <a href="/pricing" style="color:white;background:#22c55e;padding:6px 16px;border-radius:8px;text-decoration:none;font-weight:600;margin-left:auto;white-space:nowrap">Upgrade</a></div>`;
+      }
+      document.querySelector('.tabs').insertAdjacentElement('beforebegin', trialBanner);
+    }
 
     const cfg = me.plan_config;
     const stats = await api('/api/stats');
