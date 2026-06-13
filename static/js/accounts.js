@@ -81,6 +81,7 @@ async function selectAccount(id) {
           <button class="detail-tab" onclick="switchDetailTab(this,'schedules')">⏰ Posting</button>
           <button class="detail-tab" onclick="switchDetailTab(this,'targets')">📊 Goals</button>
           <button class="detail-tab" onclick="switchDetailTab(this,'posts')">📝 Activity</button>
+          <button class="detail-tab" onclick="switchDetailTab(this,'logs')">📋 Logs</button>
           <button class="detail-tab" onclick="switchDetailTab(this,'advanced')">⚙️ More</button>
         </div>
 
@@ -88,6 +89,7 @@ async function selectAccount(id) {
         ${renderSchedulesTab(scheds)}
         ${renderGoalsTab(detail)}
         ${renderPostsTab(posts)}
+        <div class="detail-section" id="dt-logs">${renderLogsTab(detail.id)}</div>
         <div class="detail-section" id="dt-advanced">${renderAdvancedTab(detail)}</div>
       </div>`;
   } catch (e) {
@@ -285,6 +287,81 @@ function renderPostsTab(posts) {
       </div>`;
     }).join('') : '<div class="feed-empty"><div class="empty-icon">📝</div>No posts yet</div>'}
   </div>`;
+}
+
+// ── Logs tab (activity timeline) ──
+function renderLogsTab(aid) {
+  api(`/api/accounts/${aid}/activity?limit=50`).then(data => {
+    const el = document.getElementById('dt-logs');
+    if (!el) return;
+    el.innerHTML = renderLogsInner(data.items || [], data.total || 0);
+  }).catch(() => {
+    const el = document.getElementById('dt-logs');
+    if (el) el.innerHTML = '<div class="feed-empty"><div class="empty-icon">⚠️</div>Failed to load logs</div>';
+  });
+  return '<div class="feed-empty"><div class="empty-icon">⏳</div>Loading...</div>';
+}
+
+function renderLogsInner(items, total) {
+  if (!items.length) return '<div class="feed-empty"><div class="empty-icon">📋</div>No activity yet — logs appear as the bot runs</div>';
+
+  const FILTERS = ['all','post','reply','style_learn','style_upgrade','auth_fail','error','schedule_skip'];
+  const FILTER_EMOJIS = {'all':'📋','post':'🧵','reply':'💬','style_learn':'🧠','style_upgrade':'⬆️','auth_fail':'🔴','error':'⚠️','schedule_skip':'⏭️'};
+
+  const REL_TIME = (iso) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    const diff = (new Date() - d) / 1000;
+    if (diff < 60) return 'just now';
+    if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+    if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+    if (diff < 172800) return 'yesterday';
+    return Math.floor(diff / 86400) + 'd ago';
+  };
+
+  const ICONS = {
+    'post': '🧵', 'reply': '💬', 'follow': '👥', 'dm': '✉️',
+    'style_learn': '🧠', 'style_upgrade': '⬆️',
+    'auth_fail': '🔴', 'post_error': '❌', 'reply_error': '❌',
+    'schedule_skip': '⏭️', 'error': '⚠️',
+    'fun_fact': '💡',
+  };
+
+  return `
+    <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px">
+      ${FILTERS.map(f => `<span class="filter-chip ${f==='all'?'active':''}" data-logfilter="${f}" onclick="switchLogFilter(this,'${f}')">${FILTER_EMOJIS[f]||'📄'} ${f.replace(/_/g,' ')}</span>`).join('')}
+    </div>
+    <div id="logsCounter" style="font-size:11px;color:#888;margin:0 0 8px">${total} total events</div>
+    ${items.map((p, i) => {
+      const icon = ICONS[p.action] || '📄';
+      const isError = p.action.endsWith('_error') || p.action === 'error' || p.action === 'auth_fail';
+      const isSuccess = p.action === 'post' || p.action === 'reply' || p.action.startsWith('style_');
+      return `<div class="feed-item" style="padding:0">
+        <div class="feed-left">
+          <div class="feed-icon ${isError ? 'error' : isSuccess ? 'success' : ''}" style="${isError ? 'color:#ef4444' : isSuccess ? 'color:#22c55e' : ''}">${icon}</div>
+          <div class="feed-line"></div>
+        </div>
+        <div class="feed-card">
+          <div class="feed-card-top">
+            <span class="feed-type-badge" style="${isError ? 'background:rgba(239,68,68,0.15);color:#ef4444' : isSuccess ? 'background:rgba(34,197,94,0.15);color:#22c55e' : 'background:rgba(113,113,122,0.15);color:#a1a1aa'}">${p.action.replace(/_/g, ' ')}</span>
+            <span class="feed-time">${REL_TIME(p.posted_at)}</span>
+          </div>
+          <div class="feed-preview">${escHtml(p.detail)}</div>
+          ${p.thread_code ? `<a href="https://threads.net/t/${p.thread_code}" target="_blank" style="font-size:11px;color:#a855f7;text-decoration:none">View thread →</a>` : ''}
+        </div>
+      </div>`;
+    }).join('')}
+  `;
+}
+
+function switchLogFilter(el, filter) {
+  document.querySelectorAll('#dt-logs .filter-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  const aid = App.selectedAccountId;
+  if (!aid) return;
+  api(`/api/accounts/${aid}/activity?limit=50${filter !== 'all' ? '&action=' + filter : ''}`).then(data => {
+    document.getElementById('dt-logs').innerHTML = renderLogsInner(data.items || [], data.total || 0);
+  });
 }
 
 // ── Advanced tab (audience, replies, limits, tags, risk, presets collapsed) ──

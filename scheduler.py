@@ -5,14 +5,15 @@ For each due schedule slot it:
   2. Posts a thread or fun fact (trend-aware)
   3. Finds high-quality reply targets from the feed
   4. Replies up to the account's remaining reply budget
-  5. Logs everything with humanization delays between actions
+  5. Logs everything (console + activity_logs table)
 """
 import asyncio
 import json
 import random
-from datetime import datetime, timezone
-from database import Account, Schedule, Post, SessionLocal, get_daily_limit
+from datetime import datetime, timezone, timedelta
+from database import Account, Schedule, Post, ActivityLog, SessionLocal, get_daily_limit
 from setup_logging import get_logger
+from logs.activity_logger import ActivityLogger
 
 logger = get_logger(__name__)
 
@@ -20,7 +21,6 @@ LOCK = asyncio.Lock()
 _running = False
 
 # ── Per-slot budgets ──
-# How many replies each slot should attempt (before checking daily caps)
 SLOT_REPLY_BUDGET = 10
 SLOT_THREAD_COUNT = 1
 
@@ -64,6 +64,8 @@ async def run_scheduler():
             if not account:
                 continue
 
+            act = ActivityLogger(account_id=account.id, username=account.username)
+
             from main import PLANS
             user = account.user
             plan_cfg = PLANS.get(user.plan, PLANS["starter"])
@@ -77,6 +79,7 @@ async def run_scheduler():
             ):
                 sched.last_status = "sleep_hours"
                 sched.last_run = _now()
+                act.info("schedule_skip", f"Sleep hours ({sleep_start}-{sleep_end} UTC) — skipped")
                 logger.debug(f"Account {account.id} in sleep hours ({sleep_start}-{sleep_end})")
                 continue
 
@@ -86,6 +89,7 @@ async def run_scheduler():
             if today_used >= daily_limit:
                 sched.last_status = "daily_limit_reached"
                 sched.last_run = _now()
+                act.info("schedule_skip", f"Daily limit hit ({today_used}/{daily_limit})")
                 logger.debug(f"Account {account.id} hit daily limit ({today_used}/{daily_limit})")
                 continue
 
@@ -93,6 +97,7 @@ async def run_scheduler():
             if not cookies:
                 sched.last_status = "no_cookies"
                 sched.last_run = _now()
+                act.error("auth_fail", "No cookies saved for this account")
                 continue
 
             proxy = account.proxy or None
@@ -101,17 +106,13 @@ async def run_scheduler():
             try:
                 from threads_saas import ThreadsAuthWrapper
                 auth = ThreadsAuthWrapper.from_cookies(cookies, proxy=proxy)
-                
+
                 # ── One-time browser fingerprint enrichment ──
-                # HTML-only refresh_tokens() misses __dyn, __csr, __hsdp, etc.
-                # On first run, launch Playwright once to capture the full fingerprint.
                 if not auth.auth.session_params or "__dyn" not in auth.auth.session_params:
                     logger.info(f"Account {account.id}: enriching browser fingerprint (one-time)...")
                     try:
                         if auth.auth.refresh_from_browser(headless=True, timeout_ms=45000):
-                            # Save enriched params back to DB so future runs skip Playwright
                             enriched = json.loads(account.cookies_encrypted or "[]")
-                            # Remove old enrichment keys if any
                             enriched = [c for c in enriched if isinstance(c, dict) and not c.get("name", "").startswith("__")]
                             enriched.append({"name": "__session_params", "value": json.dumps(auth.auth.session_params)})
                             enriched.append({"name": "__fb_dtsg", "value": auth.auth.fb_dtsg or ""})
@@ -125,7 +126,8 @@ async def run_scheduler():
                         logger.warning(f"Account {account.id}: browser refresh failed ({type(e).__name__}), continuing with HTML fingerprint")
             except Exception as e:
                 logger.error(f"Account {account.id} auth failed: {e}")
-                sched.last_status = f"auth_error"
+                act.error("auth_fail", f"Auth failed: {str(e)[:100]}")
+                sched.last_status = "auth_error"
                 sched.last_run = _now()
                 db.commit()
                 continue
@@ -157,6 +159,7 @@ async def run_scheduler():
                         link = account.link if account.links_enabled else None
                         result = auth.post_thread(content, link=link)
                         thread_code = result.get("thread_code", "")
+                        act.success(post_type, f"Posted {post_type} ({content[:50]}...)", thread_code=thread_code)
                         logger.info(f"✅ Posted for {account.username}: {thread_code[:20]}")
                         db.add(Post(
                             account_id=account.id,
@@ -168,7 +171,8 @@ async def run_scheduler():
                         db.commit()
                     except Exception as e:
                         logger.error(f"Post failed for account {account.id}: {e}")
-                        sched.last_status = f"post_error"
+                        act.error("post_error", f"Post failed: {str(e)[:100]}")
+                        sched.last_status = "post_error"
 
                 # ── Step 3: Reply cycle ──
                 reply_budget = min(
@@ -183,7 +187,6 @@ async def run_scheduler():
                     reply_targets = []
 
                     try:
-                        # Get feed-based targets
                         reply_targets = auth.find_reply_targets(
                             count=20,
                             min_likes=min_likes,
@@ -204,12 +207,10 @@ async def run_scheduler():
                             if filtered:
                                 reply_targets = filtered
 
-                    # Limit to budget
                     reply_targets = reply_targets[:reply_budget]
 
                     replies_posted = 0
                     for target in reply_targets:
-                        # Check we haven't hit daily reply cap midway
                         if account.today_replies >= (account.max_replies or 15):
                             break
                         if account.today_replies >= (account.target_replies or 10):
@@ -232,6 +233,7 @@ async def run_scheduler():
                             replies_posted += 1
                             db.commit()
 
+                            act.success("reply", f"Replied to @{target['username']} ({target.get('like_count',0)}❤️)", thread_code=target["thread_code"])
                             logger.info(
                                 f"💬 Replied to @{target['username']} "
                                 f"({target['like_count']}❤️) — {reply_text[:40]}"
@@ -239,11 +241,12 @@ async def run_scheduler():
 
                         except Exception as e:
                             logger.error(f"Reply failed to {target.get('username','?')}: {e}")
+                            act.error("reply_error", f"Reply failed to @{target.get('username','?')}: {str(e)[:80]}")
                             db.rollback()
                             continue
 
                     if replies_posted:
-                        logger.info(f"Account {account.id}: {replies_posted} replies posted this slot")
+                        act.info("reply", f"Posted {replies_posted} replies this slot")
 
                 # ── Mark schedule as successful ──
                 sched.last_status = "success"
@@ -252,6 +255,7 @@ async def run_scheduler():
 
             except Exception as e:
                 logger.error(f"Schedule {sched.id} (account {account.id}) failed: {e}")
+                act.error("error", f"Schedule failed: {str(e)[:100]}")
                 sched.last_status = f"error: {str(e)[:50]}"
                 sched.last_run = _now()
                 db.commit()
@@ -272,9 +276,30 @@ async def run_scheduler():
 async def scheduler_loop():
     """Run every 60 seconds. Started as a FastAPI lifespan task."""
     logger.info("Scheduler started (checking every 60s)")
+    # Cleanup old logs on startup
+    _cleanup_old_logs()
     while True:
         await asyncio.sleep(60)
         await run_scheduler()
+        # Purge logs older than 3 days every hour
+        if datetime.now(timezone.utc).minute == 0:
+            _cleanup_old_logs()
+
+
+def _cleanup_old_logs():
+    """Delete activity logs older than 3 days."""
+    try:
+        db = SessionLocal()
+        try:
+            cutoff = datetime.now(timezone.utc) - timedelta(days=3)
+            deleted = db.query(ActivityLog).filter(ActivityLog.posted_at < cutoff).delete()
+            db.commit()
+            if deleted:
+                logger.info(f"🧹 Purged {deleted} old activity logs (older than 3 days)")
+        finally:
+            db.close()
+    except Exception as e:
+        logger.warning(f"Log cleanup failed: {e}")
 
 
 async def run_account_now(account_id: int):
@@ -286,7 +311,6 @@ async def run_account_now(account_id: int):
             db.close()
             return {"error": "Account not found"}
 
-        # Temporarily set a schedule to the current hour (in-memory only)
         current_hour = _utc_hour()
         schedules = (
             db.query(Schedule)
@@ -298,7 +322,6 @@ async def run_account_now(account_id: int):
             db.close()
             return {"error": "No enabled schedules for this account"}
 
-        # Pick the first enabled schedule, fake its hour_utc in memory
         sched = schedules[0]
         original_hour = sched.hour_utc
         sched.hour_utc = current_hour
@@ -309,7 +332,6 @@ async def run_account_now(account_id: int):
 
         await run_scheduler()
 
-        # Restore original hour after run
         db2 = SessionLocal()
         try:
             restored = db2.query(Schedule).filter(Schedule.id == sched.id).first()

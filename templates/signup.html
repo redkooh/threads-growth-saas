@@ -79,24 +79,30 @@ body::before{content:'';position:fixed;top:-50%;left:-50%;width:200%;height:200%
       <label class="plan-opt selected" onclick="selectPlan('starter',this)">
         <input type="radio" name="plan" value="starter" checked>
         <div class="pname">Starter</div>
-        <div class="pprice">$19/mo</div>
+        <div class="pprice">$10/mo</div>
       </label>
       <label class="plan-opt" onclick="selectPlan('growth',this)">
         <input type="radio" name="plan" value="growth">
         <div class="pbadge">Popular</div>
         <div class="pname">Growth</div>
-        <div class="pprice">$49/mo</div>
+        <div class="pprice">$25/mo</div>
       </label>
       <label class="plan-opt" onclick="selectPlan('agency',this)">
         <input type="radio" name="plan" value="agency">
         <div class="pname">Agency</div>
-        <div class="pprice">$149/mo</div>
+        <div class="pprice">$80/mo</div>
       </label>
     </div>
 
     <button type="submit" class="submit-btn" id="signupBtn">Create Account</button>
     <div class="error" id="error"></div>
   </form>
+  <div id="success" style="display:none;text-align:center">
+    <div style="font-size:48px;margin-bottom:12px">📬</div>
+    <div style="font-size:18px;font-weight:700;margin-bottom:8px">Check your email</div>
+    <div style="color:#888;font-size:14px;line-height:1.6">We sent a verification link to<br><strong id="verifyEmail" style="color:#a855f7"></strong></div>
+    <div style="margin-top:16px;font-size:13px;color:#555">Didn't get it? <a href="#" onclick="resendVerification()" style="color:#a855f7;text-decoration:none;font-weight:500">Resend</a></div>
+  </div>
   <div class="footer">Already have an account? <a href="/login">Sign in</a></div>
 </div>
 <script>
@@ -124,12 +130,39 @@ async function signup(){
   btn.classList.add('loading');
   document.getElementById('error').style.display='none';
   try{
-    const r=await fetch('/api/auth/signup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:document.getElementById('name').value,email:document.getElementById('email').value,password:document.getElementById('password').value})});
+    const plan=document.querySelector('#planSelector input:checked')?.value||'starter';
+    const r=await fetch('/api/auth/signup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:document.getElementById('name').value,email:document.getElementById('email').value,password:document.getElementById('password').value,plan})});
     const d=await r.json();
-    if(d.ok){window.location.href='/';return}
+    if(d.ok){
+      document.querySelector('form').style.display='none';
+      document.getElementById('success').style.display='block';
+      document.getElementById('verifyEmail').textContent=d.email||document.getElementById('email').value;
+      // If paid plan, redirect to Stripe checkout after a moment
+      if (plan !== 'starter') {
+        setTimeout(async () => {
+          try {
+            const cr = await fetch('/api/billing/create-checkout', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({plan})});
+            const cd = await cr.json();
+            if (cd.url) window.location.href = cd.url;
+          } catch(e) {}
+        }, 1500);
+      }
+      return
+    }
     const el=document.getElementById('error');el.textContent=d.error||'Signup failed';el.style.display='block';
   }catch(e){const el=document.getElementById('error');el.textContent='Network error';el.style.display='block'}
   btn.classList.remove('loading');
+}
+async function resendVerification(){
+  const email=document.getElementById('verifyEmail').textContent;
+  if(!email)return;
+  const el=document.querySelector('#success div:last-child a');
+  el.textContent='Sending...';
+  try{
+    await fetch('/api/auth/resend-verification',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});
+    el.textContent='Sent!';
+    setTimeout(()=>{el.textContent='Resend'},3000);
+  }catch(e){el.textContent='Failed';setTimeout(()=>{el.textContent='Resend'},3000)}
 }
 </script>
 </body>

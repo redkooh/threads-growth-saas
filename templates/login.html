@@ -64,7 +64,7 @@ body::before{content:'';position:fixed;top:-50%;left:-50%;width:200%;height:200%
     <button type="submit" class="submit-btn" id="loginBtn">Sign In</button>
     <div class="error" id="error"></div>
   </form>
-  <div class="footer">No account? <a href="/signup">Sign up free</a></div>
+  <div class="footer">No account? <a href="/signup">Sign up free</a> · <a href="/forgot-password" style="color:#888">Forgot password?</a></div>
   <div class="demo-note">Demo: <strong>test@test.com</strong> / <strong>test123</strong></div>
 </div>
 <script>
@@ -81,9 +81,22 @@ async function login(){
     const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:document.getElementById('email').value,password:document.getElementById('password').value})});
     const d=await r.json();
     if(d.ok){window.location.href='/';return}
-    const el=document.getElementById('error');el.textContent=d.error||'Login failed';el.style.display='block';
+    const el=document.getElementById('error');
+    if(d.unverified){
+      el.innerHTML='Please verify your email first. <a href="#" onclick="resendVerif(\''+d.email+'\')" style="color:#a855f7">Resend verification</a>';
+      el.style.display='block';
+    }else{
+      el.textContent=d.error||'Login failed';
+      el.style.display='block';
+    }
   }catch(e){const el=document.getElementById('error');el.textContent='Network error';el.style.display='block'}
   btn.classList.remove('loading');
+}
+async function resendVerif(email){
+  const el=document.getElementById('error');
+  el.innerHTML='Sending verification...';
+  await fetch('/api/auth/resend-verification',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});
+  el.innerHTML='Verification email sent! Check your inbox.';
 }
 </script>
 </body>

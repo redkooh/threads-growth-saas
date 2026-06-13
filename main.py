@@ -37,12 +37,26 @@ try:
 except ImportError:
     stripe = None
 import urllib.request
+import time
+from collections import defaultdict
 
-from sqlalchemy import func, extract
-from database import User, Account, Schedule, Post, ContentPreset, init_db, get_db, get_account_limit, get_daily_limit
+from sqlalchemy import func, extract, text
+from database import User, Account, Schedule, Post, ContentPreset, ActivityLog, init_db, get_db, get_account_limit, get_daily_limit
 from threads_login import login_threads, verify_cookies, ThreadsLoginError
 from setup_logging import init_logging, get_logger
 from ai import generate_thread, generate_reply, generate_fun_fact, learn_writing_style
+from email_utils import send_verification_email, send_reset_email, set_base_url, BASE_URL
+
+logger = get_logger(__name__)
+
+# Sentry
+SENTRY_DSN = os.environ.get("SENTRY_DSN", "")
+if SENTRY_DSN:
+    import sentry_sdk
+    sentry_sdk.init(dsn=SENTRY_DSN, traces_sample_rate=0.1)
+    logger.info("✅ Sentry initialized")
+else:
+    logger.warning("⚠️  SENTRY_DSN not configured — error monitoring disabled")
 
 logger = get_logger(__name__)
 
@@ -74,6 +88,17 @@ PROXY_BY_COUNTRY = {
 async def lifespan(app: FastAPI):
     init_logging()
     init_db()
+    # ── DB health check ──
+    try:
+        db = next(get_db())
+        row = db.execute(text("SELECT 1")).scalar()
+        if row != 1:
+            logger.error("❌ DB health check failed — SELECT 1 returned unexpected value")
+        else:
+            logger.info("✅ DB health check passed")
+        db.close()
+    except Exception as e:
+        logger.error(f"❌ DB health check failed: {e}")
     logger.info("Threads SaaS starting up")
     from scheduler import scheduler_loop
     task = asyncio.create_task(scheduler_loop())
@@ -120,10 +145,13 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
 # ── Serve static HTML (no Jinja2) ──
 
 TEMPLATES = {
+    "/terms": "terms.html",
+    "/privacy": "privacy.html",
     "/": "dashboard.html",
     "/login": "login.html",
     "/signup": "signup.html",
     "/pricing": "pricing.html",
+    "/billing/success": "billing_success.html",
 }
 
 def serve_html(name: str) -> HTMLResponse:
@@ -133,7 +161,34 @@ def serve_html(name: str) -> HTMLResponse:
     return HTMLResponse(path.read_text(encoding="utf-8"))
 
 
-# ── Geo detection ──
+VERIFY_RESULT_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Email Verification — Threads Growth</title>
+<style>
+*{{margin:0;padding:0;box-sizing:border-box}}
+body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0f0f13;display:flex;align-items:center;justify-content:center;min-height:100vh;color:#e0e0e0;padding:20px}}
+.card{{background:#1a1a24;border-radius:20px;padding:48px 40px;width:420px;max-width:100%;box-shadow:0 25px 80px rgba(0,0,0,0.5);border:1px solid #2a2a3a;text-align:center}}
+.icon{{font-size:48px;margin-bottom:12px}}
+.title{{font-size:20px;font-weight:700;margin-bottom:8px}}
+.msg{{color:#888;font-size:14px;line-height:1.6}}
+.btn{{display:inline-block;margin-top:20px;padding:12px 28px;border-radius:10px;background:linear-gradient(135deg,#a855f7,#ec4899);color:white;text-decoration:none;font-weight:600;font-size:14px}}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="icon">{icon}</div>
+  <div class="title" style="color:{color}">{title}</div>
+  <div class="msg">{message}</div>
+  {btn_html}
+</div>
+</body>
+</html>"""
+
+
+# ── Rate limiting (in-memory, per-IP) ──
 
 @app.get("/api/me/geo")
 async def api_geo(request: Request):
@@ -156,20 +211,20 @@ async def api_geo(request: Request):
 
 PLANS = {
     "starter": {
-        "name": "Starter", "price": "$29/mo",
+        "name": "Starter", "price": "$10/mo",
         "max_accounts": 1, "max_schedules": 6, "max_posts_day": 30,
         "feature_replies": True, "feature_style": False,
         "feature_audience": False, "feature_link_promo": False,
     },
     "growth": {
-        "name": "Growth", "price": "$79/mo",
+        "name": "Growth", "price": "$25/mo",
         "max_accounts": 3, "max_schedules": 12, "max_posts_day": 90,
         "feature_replies": True, "feature_style": True,
         "feature_audience": True, "feature_link_promo": True,
     },
     "agency": {
-        "name": "Agency", "price": "$199/mo",
-        "max_accounts": 10, "max_schedules": 36, "max_posts_day": 500,
+        "name": "Agency", "price": "$80/mo",
+        "max_accounts": 15, "max_schedules": 36, "max_posts_day": 500,
         "feature_replies": True, "feature_style": True,
         "feature_audience": True, "feature_link_promo": True,
     },
@@ -205,11 +260,128 @@ async def signup_page():
 async def pricing_page():
     return serve_html("pricing.html")
 
+@app.get("/billing/success")
+async def billing_success_page():
+    return serve_html("billing_success.html")
+
+@app.get("/terms")
+async def terms_page():
+    return serve_html("terms.html")
+
+@app.get("/privacy")
+async def privacy_page():
+    return serve_html("privacy.html")
+
+@app.get("/forgot-password")
+async def forgot_password_page():
+    return serve_html("forgot_password.html")
+
 @app.get("/logout")
 async def logout():
     resp = RedirectResponse("/login")
-    resp.delete_cookie(COOKIE_NAME)
+    resp.delete_cookie(COOKIE_NAME, path="/")
     return resp
+
+
+# ── Admin Panel ──
+ADMIN_EMAIL = "growpilotgpt@gmail.com"
+
+def require_admin(request: Request):
+    token = request.cookies.get(COOKIE_NAME)
+    if not token:
+        raise HTTPException(401)
+    try:
+        data = jwt.decode(token, SECRET_KEY, algorithms=[JWT_ALGO])
+        db = next(get_db())
+        user = db.query(User).filter(User.id == int(data["sub"])).first()
+        db.close()
+        if not user or user.email != ADMIN_EMAIL:
+            raise HTTPException(403)
+        return user
+    except (JWTError, HTTPException):
+        raise HTTPException(403)
+
+@app.get("/admin")
+async def admin_page(request: Request):
+    try:
+        require_admin(request)
+        return serve_html("admin.html")
+    except HTTPException:
+        return RedirectResponse("/login")
+
+@app.get("/api/admin/users")
+async def admin_users(user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    users = db.query(User).all()
+    return {"users": [{"id": u.id, "email": u.email, "name": u.name,
+        "plan": u.plan, "status": u.status, "email_verified": bool(u.email_verified),
+        "account_count": len(u.accounts) if u.accounts else 0,
+        "created_at": u.created_at.isoformat() if u.created_at else None} for u in users]}
+
+@app.get("/api/admin/accounts")
+async def admin_accounts(user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    accounts = db.query(Account).all()
+    return {"accounts": [{"id": a.id, "username": a.username, "niche": a.niche,
+        "active": a.active, "today_threads": a.today_threads, "today_replies": a.today_replies,
+        "user_email": a.user.email if a.user else None} for a in accounts]}
+
+@app.get("/api/admin/activity")
+async def admin_activity(user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    logs = db.query(ActivityLog).order_by(ActivityLog.posted_at.desc()).limit(500).all()
+    return {"logs": [{"id": l.id, "account_id": l.account_id, "action": l.action,
+        "detail": l.detail, "thread_code": l.thread_code,
+        "posted_at": l.posted_at.isoformat() if l.posted_at else None} for l in logs]}
+
+@app.post("/api/admin/users/{user_id}/toggle")
+async def admin_toggle_user(user_id: int, user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    u = db.query(User).filter(User.id == user_id).first()
+    if not u: raise HTTPException(404)
+    u.status = "paused" if u.status == "active" else "active"
+    db.commit()
+    return {"ok": True, "status": u.status}
+
+@app.post("/api/admin/users/{user_id}/plan")
+async def admin_change_plan(user_id: int, request: Request, user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    u = db.query(User).filter(User.id == user_id).first()
+    if not u: raise HTTPException(404)
+    body = await request.json()
+    plan = body.get("plan", "starter")
+    if plan not in PLANS: return JSONResponse({"error": "Invalid plan"}, 400)
+    u.plan = plan
+    db.commit()
+    return {"ok": True, "plan": plan}
+
+@app.delete("/api/admin/users/{user_id}")
+async def admin_delete_user(user_id: int, user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    u = db.query(User).filter(User.id == user_id).first()
+    if not u: raise HTTPException(404)
+    if u.email == ADMIN_EMAIL: return JSONResponse({"error": "Cannot delete admin"}, 403)
+    db.delete(u)
+    db.commit()
+    return {"ok": True}
+
+@app.post("/api/admin/accounts/{account_id}/toggle")
+async def admin_toggle_account(account_id: int, user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    a = db.query(Account).filter(Account.id == account_id).first()
+    if not a: raise HTTPException(404)
+    a.active = not a.active
+    db.commit()
+    return {"ok": True, "active": a.active}
+
+
+# ── Auth API ──
+LOGIN_ATTEMPTS = defaultdict(list)  # ip -> [timestamps]
+LOGIN_MAX_ATTEMPTS = 5
+LOGIN_WINDOW = 300  # 5 minutes in seconds
+
+def check_login_rate_limit(ip: str):
+    now = time.time()
+    attempts = LOGIN_ATTEMPTS[ip]
+    # Prune old entries
+    LOGIN_ATTEMPTS[ip] = [t for t in attempts if now - t < LOGIN_WINDOW]
+    if len(LOGIN_ATTEMPTS[ip]) >= LOGIN_MAX_ATTEMPTS:
+        retry_after = int(LOGIN_WINDOW - (now - LOGIN_ATTEMPTS[ip][0]))
+        raise HTTPException(429, detail=f"Too many attempts. Try again in {retry_after}s")
+    LOGIN_ATTEMPTS[ip].append(now)
 
 
 # ── Auth API ──
@@ -220,6 +392,11 @@ async def api_signup(request: Request, db: Session = Depends(get_db)):
     email = body.get("email", "").strip().lower()
     password = body.get("password", "")
     name = body.get("name", "").strip()
+    plan = body.get("plan", "starter").strip().lower()
+    if plan not in ("starter", "growth", "agency"):
+        plan = "starter"
+
+    check_login_rate_limit(request.client.host)
 
     if not email or not password:
         return JSONResponse({"error": "Email and password required"}, 400)
@@ -231,13 +408,19 @@ async def api_signup(request: Request, db: Session = Depends(get_db)):
     salt = secrets.token_hex(16)
     pwd_hash = hashlib.sha256((password + salt).encode()).hexdigest()
     stored = f"{salt}${pwd_hash}"
-    user = User(email=email, name=name, password_hash=stored, plan="starter", status="active")
+    verif_token = secrets.token_urlsafe(32)
+    user = User(email=email, name=name, password_hash=stored, plan=plan,
+                status="active", email_verified=False, email_verification_token=verif_token)
     db.add(user)
     db.commit()
-    token = create_token(user.id)
-    resp = JSONResponse({"ok": True, "token": token})
-    resp.set_cookie(COOKIE_NAME, token, max_age=2592000, path="/", httponly=True)
-    return resp
+
+    set_base_url(str(request.base_url))
+    sent = send_verification_email(email, verif_token)
+
+    logger.info(f"📧 Signup {email} plan={plan} — verification{' sent' if sent else ' FAILED to send'}")
+    return {"ok": True, "message": "Check your email for the verification link",
+            "verification_sent": sent, "email": email, "plan": plan}
+
 
 @app.post("/api/auth/login")
 async def api_login(request: Request, db: Session = Depends(get_db)):
@@ -245,16 +428,145 @@ async def api_login(request: Request, db: Session = Depends(get_db)):
     email = body.get("email", "").strip().lower()
     password = body.get("password", "")
 
+    check_login_rate_limit(request.client.host)
+
     user = db.query(User).filter(User.email == email).first()
     if not user or not verify_password(password, user.password_hash):
         return JSONResponse({"error": "Invalid email or password"}, 401)
     if user.status != "active":
         return JSONResponse({"error": "Account is " + user.status}, 403)
+    if not user.email_verified:
+        return JSONResponse({
+            "error": "Please verify your email first",
+            "unverified": True,
+            "email": user.email
+        }, 403)
 
     token = create_token(user.id)
     resp = JSONResponse({"ok": True, "token": token})
-    resp.set_cookie(COOKIE_NAME, token, max_age=2592000, path="/", httponly=True)
+    resp.set_cookie(COOKIE_NAME, token, max_age=2592000, path="/", httponly=True, secure=True, samesite="lax")
     return resp
+
+
+@app.post("/api/auth/resend-verification")
+async def api_resend_verification(request: Request, db: Session = Depends(get_db)):
+    body = await request.json()
+    email = body.get("email", "").strip().lower()
+    if not email:
+        return JSONResponse({"error": "Email required"}, 400)
+    user = db.query(User).filter(User.email == email).first()
+    if not user or user.email_verified:
+        return JSONResponse({"error": "No unverified account with that email"}, 400)
+    verif_token = secrets.token_urlsafe(32)
+    user.email_verification_token = verif_token
+    db.commit()
+    set_base_url(str(request.base_url))
+    sent = send_verification_email(email, verif_token)
+    return {"ok": True, "message": "Verification email resent", "sent": sent}
+
+
+@app.get("/api/auth/verify-email")
+async def api_verify_email(token: str = "", db: Session = Depends(get_db)):
+    if not token:
+        return JSONResponse({"error": "Token required"}, 400)
+    user = db.query(User).filter(User.email_verification_token == token).first()
+    if not user:
+        return JSONResponse({"error": "Invalid or expired verification link"}, 400)
+    user.email_verified = True
+    user.email_verification_token = ""
+    db.commit()
+    logger.info(f"✅ Email verified for user {user.id} ({user.email})")
+    return {"ok": True, "message": "Email verified! You can now sign in."}
+
+
+@app.get("/verify-email")
+async def verify_email_page(token: str = "", db: Session = Depends(get_db)):
+    """HTML page users land on after clicking verification link in email."""
+    if token:
+        user = db.query(User).filter(User.email_verification_token == token).first()
+        if user:
+            user.email_verified = True
+            user.email_verification_token = ""
+            db.commit()
+            icon = "✅"
+            color = "#22c55e"
+            title = "Email Verified!"
+            message = "You can now sign in to your account and start growing your Threads presence."
+            btn_html = '<a href="/login" class="btn">Sign In</a>'
+            logger.info(f"✅ Email verified for {user.email}")
+        else:
+            icon = "❌"
+            color = "#ef4444"
+            title = "Verification Failed"
+            message = "Invalid or expired verification link."
+            btn_html = '<a href="/signup" class="btn">Sign Up</a>'
+    else:
+        icon = "❌"
+        color = "#ef4444"
+        title = "Missing Token"
+        message = "No verification token provided. Check your email for the full link."
+        btn_html = '<a href="/login" class="btn">Sign In</a>'
+
+    return HTMLResponse(VERIFY_RESULT_HTML.format(icon=icon, color=color, title=title, message=message, btn_html=btn_html))
+
+
+# ── Password Reset ──
+
+@app.post("/api/auth/forgot-password")
+async def api_forgot_password(request: Request, db: Session = Depends(get_db)):
+    body = await request.json()
+    email = body.get("email", "").strip().lower()
+    if not email:
+        return JSONResponse({"error": "Email required"}, 400)
+
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        return {"ok": True, "message": "If that email exists, a reset link was sent"}
+
+    reset_token = secrets.token_urlsafe(32)
+    expires = datetime.utcnow() + timedelta(hours=1)
+    user.reset_token = reset_token
+    user.reset_token_expires = expires
+    db.commit()
+
+    set_base_url(str(request.base_url))
+    sent = send_reset_email(email, reset_token)
+
+    logger.info(f"🔑 Password reset sent to {email} — {'sent' if sent else 'FAILED'}")
+    return {"ok": True, "message": "If that email exists, a reset link was sent", "sent": sent}
+
+
+@app.post("/api/auth/reset-password")
+async def api_reset_password(request: Request, db: Session = Depends(get_db)):
+    body = await request.json()
+    token = body.get("token", "").strip()
+    password = body.get("password", "")
+
+    if not token or not password:
+        return JSONResponse({"error": "Token and password required"}, 400)
+    if len(password) < 6:
+        return JSONResponse({"error": "Password must be 6+ characters"}, 400)
+
+    now = datetime.utcnow()
+    user = db.query(User).filter(
+        User.reset_token == token,
+        User.reset_token_expires.isnot(None),
+        User.reset_token_expires > now
+    ).first()
+    if not user:
+        return JSONResponse({"error": "Invalid or expired reset token"}, 400)
+
+    salt = secrets.token_hex(16)
+    pwd_hash = hashlib.sha256((password + salt).encode()).hexdigest()
+    stored = f"{salt}${pwd_hash}"
+
+    user.password_hash = stored
+    user.reset_token = ""
+    user.reset_token_expires = None
+    db.commit()
+    logger.info(f"🔑 Password reset completed for user {user.id} ({user.email})")
+    return {"ok": True}
+
 
 @app.get("/api/me")
 async def api_me(user: User = Depends(get_current_user)):
@@ -328,7 +640,7 @@ async def api_accounts(user: User = Depends(get_current_user), db: Session = Dep
 @app.post("/api/accounts")
 async def api_create_account(request: Request, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     existing = db.query(Account).filter(Account.user_id == user.id).count()
-    limit = get_account_limit(user.plan)
+    limit = PLANS.get(user.plan, PLANS["starter"])["max_accounts"]
     if existing >= limit:
         return JSONResponse({"error": f"Plan limit: {limit} accounts. Upgrade to add more."}, 403)
 
@@ -401,6 +713,10 @@ async def api_learn_style(account_id: int, user: User = Depends(get_current_user
     account.writing_style = style
     db.commit()
 
+    from logs.activity_logger import ActivityLogger
+    act = ActivityLogger(account_id=account.id, username=account.username)
+    act.success("style_learn", f"Learned writing style from {len(posts)} posts")
+
     return {"ok": True, "style": style, "posts_analyzed": len(posts)}
 
 
@@ -435,6 +751,8 @@ async def api_learn_and_go(account_id: int, user: User = Depends(get_current_use
         style = learn_writing_style(posts)
         account.writing_style = style
         db.commit()
+        from logs.activity_logger import ActivityLogger
+        ActivityLogger(account_id=account.id, username=account.username).success("style_learn", f"Learned writing style from {len(posts)} posts (auto)")
         logger.info(f"✅ Learned writing style for @{account.username} ({len(posts)} posts analyzed)")
         return {"ok": True, "style": style, "posts_analyzed": len(posts)}
     else:
@@ -475,6 +793,8 @@ New style signature:"""
         new_style = _call_ai(messages, max_tokens=600)
         account.writing_style = new_style
         db.commit()
+        from logs.activity_logger import ActivityLogger
+        ActivityLogger(account_id=account.id, username=account.username).success("style_upgrade", f"Upgraded style: {direction}")
         logger.info(f"✅ Upgraded style for @{account.username}: {direction}")
         return {"ok": True, "style": new_style}
     except Exception as e:
@@ -490,10 +810,24 @@ async def api_update_style(account_id: int, request: Request, user: User = Depen
     body = await request.json()
     account.writing_style = body.get("style", "")
     db.commit()
+    from logs.activity_logger import ActivityLogger
+    ActivityLogger(account_id=account.id, username=account.username).info("style_upgrade", "Manually edited writing style")
     return {"ok": True}
 
 
-# ── Schedules API ──
+# ── Activity Logs API ──
+
+@app.get("/api/accounts/{account_id}/activity")
+async def api_activity(account_id: int, limit: int = 50, offset: int = 0,
+                       action: str = None,
+                       user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Get paginated activity logs for an account."""
+    account = db.query(Account).filter(Account.id == account_id, Account.user_id == user.id).first()
+    if not account:
+        raise HTTPException(404)
+    from logs.activity_logger import get_activity
+    return get_activity(db, account_id, limit=limit, offset=offset, action_filter=action)
+
 
 # ── Schedules API ──
 
@@ -599,7 +933,7 @@ async def api_create_schedule(account_id: int, request: Request, user: User = De
     if existing:
         return JSONResponse({"error": f"Slot at UTC {hour}:00 already exists"}, 400)
     total = db.query(Schedule).filter(Schedule.account_id == account_id).count()
-    plan_max = {"starter": 6, "growth": 8, "agency": 12}.get(user.plan, 6)
+    plan_max = PLANS.get(user.plan, PLANS["starter"]).get("max_schedules", 6)
     if total >= plan_max:
         return JSONResponse({"error": f"Plan limit: {plan_max} slots. Upgrade to add more."}, 403)
     sched = Schedule(account_id=account_id, slot_name=name, hour_utc=hour, enabled=True, post_type=ptype)
@@ -753,9 +1087,14 @@ async def api_stats_history(user: User = Depends(get_current_user), db: Session 
 # ── Billing / Stripe ──
 
 @app.post("/api/billing/create-checkout")
-async def api_create_checkout(user: User = Depends(get_current_user)):
+async def api_create_checkout(request: Request, user: User = Depends(get_current_user)):
     if not STRIPE_KEY:
         return JSONResponse({"error": "Stripe not configured"}, 503)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    plan = body.get("plan", user.plan or "starter")
     try:
         stripe.api_key = STRIPE_KEY
         prices = {
@@ -763,15 +1102,35 @@ async def api_create_checkout(user: User = Depends(get_current_user)):
             "growth": os.environ.get("STRIPE_PRICE_GROWTH", "price_growth"),
             "agency": os.environ.get("STRIPE_PRICE_AGENCY", "price_agency"),
         }
+        price_id = prices.get(plan)
+        if not price_id:
+            return JSONResponse({"error": f"No price for plan: {plan}"}, 400)
         checkout = stripe.checkout.Session.create(
             customer_email=user.email,
             mode="subscription",
-            line_items=[{"price": prices.get(user.plan, "price_starter"), "quantity": 1}],
-            success_url="https://YOUR_DOMAIN/billing/success",
-            cancel_url="https://YOUR_DOMAIN/pricing",
-            metadata={"user_id": str(user.id)},
+            line_items=[{"price": price_id, "quantity": 1}],
+            success_url=f"{BASE_URL}/billing/success",
+            cancel_url=f"{BASE_URL}/pricing",
+            metadata={"user_id": str(user.id), "plan": plan},
         )
         return {"url": checkout.url}
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, 500)
+
+
+@app.post("/api/billing/portal")
+async def api_billing_portal(user: User = Depends(get_current_user)):
+    if not STRIPE_KEY:
+        return JSONResponse({"error": "Stripe not configured"}, 503)
+    if not user.stripe_customer_id:
+        return JSONResponse({"error": "No subscription yet"}, 400)
+    try:
+        stripe.api_key = STRIPE_KEY
+        portal = stripe.billing_portal.Session.create(
+            customer=user.stripe_customer_id,
+            return_url=f"{BASE_URL}/dashboard",
+        )
+        return {"url": portal.url}
     except Exception as e:
         return JSONResponse({"error": str(e)}, 500)
 

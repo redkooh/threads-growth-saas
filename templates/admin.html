@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — Threads Growth</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0f0f13;color:#e0e0e0;padding:20px}
+h1{font-size:22px;background:linear-gradient(135deg,#a855f7,#ec4899);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:20px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:24px}
+.stat-card{background:#1a1a24;border-radius:12px;padding:20px;border:1px solid #2a2a3a}
+.stat-card .num{font-size:28px;font-weight:700;color:#e0e0e0}
+.stat-card .label{font-size:12px;color:#888;margin-top:4px}
+.search-bar{display:flex;gap:8px;margin-bottom:16px}
+.search-bar input{flex:1;padding:10px 14px;border-radius:8px;border:1px solid #2a2a3a;background:#12121a;color:#e0e0e0;font-size:14px;outline:none}
+.search-bar input:focus{border-color:#a855f7}
+table{width:100%;border-collapse:collapse;background:#1a1a24;border-radius:12px;overflow:hidden;border:1px solid #2a2a3a}
+th{padding:12px 14px;text-align:left;font-size:12px;color:#888;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #2a2a3a;background:#12121a}
+td{padding:10px 14px;font-size:13px;border-bottom:1px solid #1f1f2e;color:#ccc}
+tr:hover td{background:#222236}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}
+.badge.active{background:rgba(34,197,94,0.15);color:#22c55e}
+.badge.starter{background:rgba(168,85,247,0.15);color:#a855f7}
+.badge.growth{background:rgba(59,130,246,0.15);color:#3b82f6}
+.badge.agency{background:rgba(236,72,153,0.15);color:#ec4899}
+.btn{background:#12121a;border:1px solid #2a2a3a;color:#ccc;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px}
+.btn:hover{border-color:#a855f7;color:#fff}
+.btn.danger:hover{border-color:#ef4444;color:#ef4444}
+.tabs{display:flex;gap:4px;margin-bottom:16px}
+.tab{padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;color:#888;background:#1a1a24;border:1px solid transparent}
+.tab.active{background:rgba(168,85,247,0.1);border-color:#a855f7;color:#a855f7}
+.actions{display:flex;gap:4px}
+select, input{background:#12121a;border:1px solid #2a2a3a;color:#ccc;padding:6px 10px;border-radius:6px;font-size:12px}
+.detail-panel{background:#1a1a24;border-radius:12px;padding:20px;border:1px solid #2a2a3a;margin-top:16px;display:none}
+.detail-panel h3{color:#e0e0e0;margin-bottom:12px}
+.detail-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.detail-grid .field{font-size:13px}
+.detail-grid .field .key{color:#888;font-size:11px}
+.detail-grid .field .val{color:#ccc}
+.toast{position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:500;z-index:100;opacity:0;transition:opacity 0.3s}
+.toast.show{opacity:1}
+.toast.ok{background:rgba(34,197,94,0.2);border:1px solid #22c55e;color:#22c55e}
+.toast.err{background:rgba(239,68,68,0.2);border:1px solid #ef4444;color:#ef4444}
+</style></head>
+<body>
+<h1>⚙️ Admin Panel</h1>
+
+<div class="stats" id="stats"></div>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('users',this)">Users</div>
+  <div class="tab" onclick="switchTab('accounts',this)">Accounts</div>
+  <div class="tab" onclick="switchTab('activity',this)">Activity Log</div>
+</div>
+
+<div class="search-bar">
+  <input type="text" id="searchInput" placeholder="Search by email, username, or ID..." oninput="filterTable()">
+</div>
+
+<div id="tabContent"></div>
+<div class="detail-panel" id="detailPanel"></div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let currentTab = 'users';
+let data = {users:[], accounts:[], activity:[]};
+
+async function loadAll(){
+  try{
+    const [u,a,act] = await Promise.all([
+      fetch('/api/admin/users').then(r=>r.json()),
+      fetch('/api/admin/accounts').then(r=>r.json()),
+      fetch('/api/admin/activity').then(r=>r.json())
+    ]);
+    data = {users:u.users||[], accounts:a.accounts||[], activity:act.logs||[]};
+    renderStats();
+    renderTab();
+  }catch(e){toast('err','Failed to load');}
+}
+
+function renderStats(){
+  const users = data.users;
+  const active = users.filter(u=>u.status==='active').length;
+  const totalAccts = data.accounts.length;
+  const todayAct = data.activity.filter(l=>{const d=new Date(l.posted_at);const n=new Date();return d.toDateString()===n.toDateString();}).length;
+  const byPlan = {starter:0,growth:0,agency:0};
+  users.forEach(u=>{byPlan[u.plan]=(byPlan[u.plan]||0)+1});
+  document.getElementById('stats').innerHTML = `
+    <div class="stat-card"><div class="num">${users.length}</div><div class="label">Total Users (${active} active)</div></div>
+    <div class="stat-card"><div class="num">${totalAccts}</div><div class="label">Threads Accounts</div></div>
+    <div class="stat-card"><div class="num">${todayAct}</div><div class="label">Actions Today</div></div>
+    <div class="stat-card"><div class="num">${byPlan.starter}/${byPlan.growth}/${byPlan.agency}</div><div class="label">Starter/Growth/Agency</div></div>
+  `;
+}
+
+function switchTab(tab,el){
+  currentTab = tab;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  filterTable();
+}
+
+function filterTable(){
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  renderTab(q);
+}
+
+function renderTab(q=''){
+  const el = document.getElementById('tabContent');
+  if(currentTab === 'users') el.innerHTML = renderUsers(q);
+  else if(currentTab === 'accounts') el.innerHTML = renderAccounts(q);
+  else el.innerHTML = renderActivity(q);
+}
+
+function renderUsers(q){
+  let list = data.users;
+  if(q) list = list.filter(u => (u.email||'').toLowerCase().includes(q) || (u.name||'').toLowerCase().includes(q) || String(u.id).includes(q));
+  if(!list.length) return '<p style="color:#555;padding:20px;text-align:center">No users found</p>';
+  return `<table>
+    <tr><th>ID</th><th>Email</th><th>Name</th><th>Plan</th><th>Status</th><th>Verified</th><th>Accounts</th><th>Actions</th></tr>
+    ${list.map(u => `<tr onclick="showDetail('user',${u.id})" style="cursor:pointer">
+      <td>${u.id}</td><td>${u.email}</td><td>${u.name||'—'}</td>
+      <td><span class="badge ${u.plan}">${u.plan}</span></td>
+      <td><span class="badge ${u.status}">${u.status}</span></td>
+      <td>${u.email_verified ? '✅' : '❌'}</td>
+      <td>${u.account_count||0}</td>
+      <td class="actions">
+        <button class="btn danger" onclick="event.stopPropagation();toggleStatus(${u.id})">${u.status==='active'?'Pause':'Activate'}</button>
+        <button class="btn danger" onclick="event.stopPropagation();deleteUser(${u.id})">Delete</button>
+      </td>
+    </tr>`).join('')}</table>`;
+}
+
+function renderAccounts(q){
+  let list = data.accounts;
+  if(q) list = list.filter(a => (a.username||'').toLowerCase().includes(q) || (a.user_email||'').toLowerCase().includes(q) || String(a.id).includes(q));
+  if(!list.length) return '<p style="color:#555;padding:20px;text-align:center">No accounts found</p>';
+  return `<table>
+    <tr><th>ID</th><th>Username</th><th>User</th><th>Niche</th><th>Active</th><th>Today</th><th>Actions</th></tr>
+    ${list.map(a => `<tr onclick="showDetail('account',${a.id})" style="cursor:pointer">
+      <td>${a.id}</td><td>@${a.username}</td><td>${a.user_email||'—'}</td>
+      <td>${a.niche||'general'}</td>
+      <td>${a.active ? '✅' : '❌'}</td>
+      <td>🧵${a.today_threads||0} 💬${a.today_replies||0}</td>
+      <td class="actions">
+        <button class="btn danger" onclick="event.stopPropagation();toggleAccount(${a.id})">${a.active?'Disable':'Enable'}</button>
+      </td>
+    </tr>`).join('')}</table>`;
+}
+
+function renderActivity(q){
+  let list = data.activity;
+  if(q) list = list.filter(l => (l.action||'').includes(q) || (l.detail||'').toLowerCase().includes(q));
+  if(!list.length) return '<p style="color:#555;padding:20px;text-align:center">No activity found</p>';
+  return `<table>
+    <tr><th>Time</th><th>Account</th><th>Action</th><th>Detail</th></tr>
+    ${list.slice(0,200).map(l => {
+      const d = new Date(l.posted_at);
+      const time = d.toLocaleString();
+      return `<tr><td style="font-size:11px;color:#888;white-space:nowrap">${time}</td>
+        <td>@${l.username||l.account_id}</td>
+        <td><span class="badge" style="background:rgba(168,85,247,0.1);color:#a855f7">${l.action}</span></td>
+        <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis">${l.detail||''}</td></tr>`;
+    }).join('')}</table>`;
+}
+
+function showDetail(type,id){
+  const panel = document.getElementById('detailPanel');
+  const item = type==='user' ? data.users.find(u=>u.id===id) : data.accounts.find(a=>a.id===id);
+  if(!item){panel.style.display='none';return;}
+  if(type==='user'){
+    panel.innerHTML = `<h3>User #${item.id} — ${item.email}</h3><div class="detail-grid">
+      <div class="field"><div class="key">Name</div><div class="val">${item.name||'—'}</div></div>
+      <div class="field"><div class="key">Plan</div><div class="val">${item.plan}</div></div>
+      <div class="field"><div class="key">Status</div><div class="val">${item.status}</div></div>
+      <div class="field"><div class="key">Verified</div><div class="val">${item.email_verified?'✅ Yes':'❌ No'}</div></div>
+      <div class="field"><div class="key">Accounts</div><div class="val">${item.account_count||0}</div></div>
+      <div class="field"><div class="key">Created</div><div class="val">${item.created_at?new Date(item.created_at).toLocaleDateString():'—'}</div></div>
+      <div style="grid-column:span 2"><div class="key">Change Plan</div>
+        <select onchange="changePlan(${item.id},this.value)"><option value="starter" ${item.plan==='starter'?'selected':''}>Starter</option>
+        <option value="growth" ${item.plan==='growth'?'selected':''}>Growth</option>
+        <option value="agency" ${item.plan==='agency'?'selected':''}>Agency</option></select>
+      </div>
+    </div>`;
+  } else {
+    panel.innerHTML = `<h3>Account #${item.id} — @${item.username}</h3><div class="detail-grid">
+      <div class="field"><div class="key">User</div><div class="val">${item.user_email||'—'}</div></div>
+      <div class="field"><div class="key">Niche</div><div class="val">${item.niche||'general'}</div></div>
+      <div class="field"><div class="key">Active</div><div class="val">${item.active?'✅':'❌'}</div></div>
+      <div class="field"><div class="key">Today</div><div class="val">🧵${item.today_threads||0} 💬${item.today_replies||0}</div></div>
+    </div>`;
+  }
+  panel.style.display='block';
+}
+
+async function toggleStatus(id){
+  await fetch('/api/admin/users/'+id+'/toggle',{method:'POST'});
+  toast('ok','User status toggled');
+  loadAll();
+}
+async function toggleAccount(id){
+  await fetch('/api/admin/accounts/'+id+'/toggle',{method:'POST'});
+  toast('ok','Account toggled');
+  loadAll();
+}
+async function deleteUser(id){
+  if(!confirm('Delete user #'+id+'?'))return;
+  await fetch('/api/admin/users/'+id,{method:'DELETE'});
+  toast('ok','User deleted');
+  loadAll();
+}
+async function changePlan(id,plan){
+  await fetch('/api/admin/users/'+id+'/plan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({plan})});
+  toast('ok','Plan changed to '+plan);
+}
+
+function toast(type,msg){
+  const t=document.getElementById('toast');
+  t.className='toast '+(type==='ok'?'ok':'err')+' show';
+  t.textContent=msg;
+  setTimeout(()=>t.classList.remove('show'),3000);
+}
+
+loadAll();
+</script>
+</body>
+</html>

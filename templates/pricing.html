@@ -95,10 +95,10 @@ nav .nav-links .btn-nav:hover{opacity:0.9;color:white}
 </div>
 
 <div class="plans" id="plansContainer">
-  <div class="plan" data-monthly="19" data-annual="182">
+  <div class="plan" data-monthly="10" data-annual="96">
     <h3>Starter</h3>
     <div class="price-row">
-      <span class="price" id="price-starter">$19</span>
+      <span class="price" id="price-starter">$10</span>
       <span class="period">/month</span>
     </div>
     <div class="desc">Perfect for getting started with one account</div>
@@ -112,14 +112,14 @@ nav .nav-links .btn-nav:hover{opacity:0.9;color:white}
       <li><span class="cross">✗</span> Dedicated proxy</li>
       <li><span class="cross">✗</span> Priority support</li>
     </ul>
-    <a href="/signup" class="cta">Get Started</a>
+    <a href="/signup" class="cta" onclick="event.preventDefault();return checkoutPlan('growth',event)">Get Started</a>
   </div>
 
-  <div class="plan featured" data-monthly="49" data-annual="468">
+  <div class="plan featured" data-monthly="25" data-annual="240">
     <div class="badge">Most Popular</div>
     <h3>Growth</h3>
     <div class="price-row">
-      <span class="price" id="price-growth">$49</span>
+      <span class="price" id="price-growth">$25</span>
       <span class="period">/month</span>
     </div>
     <div class="desc">For creators ready to scale their presence</div>
@@ -133,18 +133,18 @@ nav .nav-links .btn-nav:hover{opacity:0.9;color:white}
       <li><span class="check">✓</span> Dedicated US proxy</li>
       <li><span class="cross">✗</span> Priority support</li>
     </ul>
-    <a href="/signup" class="cta">Get Started</a>
+    <a href="/signup" class="cta" onclick="event.preventDefault();return checkoutPlan('starter',event)">Get Started</a>
   </div>
 
-  <div class="plan" data-monthly="149" data-annual="1428">
+  <div class="plan" data-monthly="80" data-annual="768">
     <h3>Agency</h3>
     <div class="price-row">
-      <span class="price" id="price-agency">$149</span>
+      <span class="price" id="price-agency">$80</span>
       <span class="period">/month</span>
     </div>
     <div class="desc">For teams managing multiple brands</div>
     <ul class="features">
-      <li><span class="check">✓</span> <b>10</b> Threads accounts</li>
+      <li><span class="check">✓</span> <b>15</b> Threads accounts</li>
       <li><span class="check">✓</span> <b>500</b> daily actions</li>
       <li><span class="check">✓</span> <b>12</b> custom posting slots</li>
       <li><span class="check">✓</span> AI content generation</li>
@@ -153,7 +153,7 @@ nav .nav-links .btn-nav:hover{opacity:0.9;color:white}
       <li><span class="check">✓</span> Dedicated + backup proxy</li>
       <li><span class="check">✓</span> Priority support</li>
     </ul>
-    <a href="/signup" class="cta">Get Started</a>
+    <a href="/signup" class="cta" onclick="event.preventDefault();return checkoutPlan('agency',event)">Get Started</a>
   </div>
 </div>
 
@@ -197,5 +197,41 @@ function toggleBilling(){
 }
 function toggleFaq(el){el.classList.toggle('open')}
 </script>
+
+<script>
+async function checkoutPlan(plan, e) {
+  // Check if logged in by trying to load /api/me
+  try {
+    const me = await fetch('/api/me').then(r => r.ok ? r.json() : null);
+    if (!me) return true; // not logged in — use normal link
+  } catch {
+    return true; // not logged in
+  }
+  // Logged in — go directly to Stripe checkout
+  e.preventDefault();
+  const toast = document.getElementById('toast');
+  const showToast = (type, msg) => {
+    if (!toast) return;
+    toast.textContent = msg;
+    toast.className = 'toast ' + type;
+    toast.style.display = 'block';
+    setTimeout(() => toast.style.display = 'none', 3000);
+  };
+  try {
+    const res = await fetch('/api/billing/create-checkout', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({plan})
+    });
+    const data = await res.json();
+    if (data.url) { window.location.href = data.url; }
+    else { showToast('error', data.error || 'Checkout failed'); }
+  } catch(e) {
+    showToast('error', 'Network error');
+  }
+  return false;
+}
+</script>
+
 </body>
 </html>

@@ -119,8 +119,19 @@ class ThreadsAuthWrapper:
         # Build auth from cookies dict
         self.auth = ThreadsAuth.from_cookies(cookies, user_agent=USER_AGENT)
         
-        # Step 1: Lightweight token refresh (fb_dtsg, lsd)
-        self.auth.refresh_tokens()
+        # Step 1: Lightweight token refresh — grace on failure
+        refresh_ok = True
+        try:
+            self.auth.refresh_tokens()
+        except Exception as e:
+            logger.warning(f"Token refresh skipped ({e}) — continuing with base cookies")
+            refresh_ok = False
+            # The client may work anyway if cookies are still valid
+        
+        if not refresh_ok:
+            # Prevent ThreadsClient.__init__ from calling refresh_tokens again
+            original_refresh = self.auth.refresh_tokens
+            self.auth.refresh_tokens = lambda: None
         
         # ── Restore full browser session params if enriched ──
         # The enrich_cookies.py script stores __session_params, __fb_dtsg,

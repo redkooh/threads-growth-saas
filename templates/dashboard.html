@@ -448,9 +448,7 @@ nav .tz-badge{font-size:11px;color:#555;background:#1a1a24;padding:3px 8px;borde
 
   <div class="card">
     <h3>💳 Billing</h3>
-    <div id="planUpgradeRow" style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn btn-primary btn-sm" onclick="toast('info','Billing portal coming soon')">Manage Subscription →</button>
-    </div>
+    <div id="billingActions"></div>
   </div>
 </div>
 
@@ -978,6 +976,8 @@ async function loadAll() {
       <div class="settings-row"><div><div class="label">Audience Targeting</div><div class="desc">Niche, locations, keywords</div></div><div class="value">${cfg.feature_audience ? '✅' : '🔒 Growth+'}</div></div>
       <div class="settings-row"><div><div class="label">Link-in-Bio</div><div class="desc">Drive traffic to your website</div></div><div class="value">${cfg.feature_link_promo ? '✅' : '🔒 Growth+'}</div></div>`;
 
+    renderBilling(me);
+
     App.accounts = await api('/api/accounts');
     document.getElementById('statsRow').innerHTML = `
       <div class="stat-card"><div class="val">${stats.accounts}</div><div class="lbl">Total Accounts ${tip('All Threads accounts you\'ve connected')}</div></div>
@@ -998,6 +998,45 @@ async function loadAll() {
   }
 }
 
+// ── Billing ──
+async function createCheckout() {
+  try {
+    const res = await fetch('/api/billing/create-checkout', { method: 'POST' });
+    const data = await res.json();
+    if (data.url) window.location.href = data.url;
+    else toast('error', data.error || 'Checkout failed');
+  } catch(e) {
+    toast('error', 'Network error');
+  }
+}
+
+async function createPortal() {
+  try {
+    const res = await fetch('/api/billing/portal', { method: 'POST' });
+    const data = await res.json();
+    if (data.url) window.location.href = data.url;
+    else toast('info', 'No active subscription — upgrade instead');
+  } catch(e) {
+    toast('error', 'Network error');
+  }
+}
+
+function renderBilling(me) {
+  const el = document.getElementById('billingActions');
+  if (!el) return;
+  const plan = me.plan || 'starter';
+  if (plan === 'agency') {
+    el.innerHTML = `<div style="color:#888;font-size:13px">You're on the top plan. 🎉</div>`;
+    return;
+  }
+  const nextTier = plan === 'starter' ? 'growth' : 'agency';
+  const nextName = plan === 'starter' ? 'Growth' : 'Agency';
+  el.innerHTML = `<button class="btn btn-primary btn-sm" onclick="createCheckout()">
+    Upgrade to ${nextName} →</button>
+    <button class="btn btn-sm" style="background:#1a1a24;border:1px solid #2a2a3a" onclick="createPortal()">
+    Manage Billing</button>`;
+}
+
 // ── Nav dropdown toggle ──
 document.getElementById('navDropdownToggle').addEventListener('click', (e) => {
   e.stopPropagation();
@@ -1009,5 +1048,10 @@ document.addEventListener('click', () => {
 
 document.addEventListener('DOMContentLoaded', loadAll);
 </script>
+<div class="footer-links" style="text-align:center;padding:20px;font-size:12px;color:#555;border-top:1px solid #1a1a24;margin-top:auto">
+  <a href="/terms" style="color:#555;text-decoration:none;margin:0 10px">Terms</a>
+  <a href="/privacy" style="color:#555;text-decoration:none;margin:0 10px">Privacy</a>
+  <span style="margin:0 10px">Threads Growth 2026</span>
+</div>
 </body>
 </html>
