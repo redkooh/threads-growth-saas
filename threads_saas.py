@@ -32,6 +32,30 @@ class ThreadsAPIError(Exception):
     pass
 
 
+def _convert_proxy(raw_proxy: str) -> str:
+    """Convert PacketStream raw format to httpx-compatible URL.
+
+    PacketStream format:    host:port:user:pass_country-X
+    httpx expects:          http://user:pass_country-X@host:port
+
+    Also handles city-level: host:port:user:pass_country-X-CityName
+    """
+    if not raw_proxy:
+        return raw_proxy
+    # Already a proper URL — pass through
+    if raw_proxy.startswith("http://") or raw_proxy.startswith("https://") or raw_proxy.startswith("socks"):
+        return raw_proxy
+    try:
+        parts = raw_proxy.split(":", 2)
+        host = parts[0]
+        port = parts[1]
+        auth = parts[2]
+        return f"http://{auth}@{host}:{port}"
+    except (IndexError, ValueError):
+        logger.warning(f"Could not parse proxy string: {raw_proxy[:40]}... — using raw value")
+        return raw_proxy
+
+
 def _convert_cookies(cookies_input) -> dict:
     """Convert various cookie formats to the {name: value} dict the library expects.
     
@@ -114,7 +138,7 @@ class ThreadsAuthWrapper:
     def __init__(self, cookies: dict, proxy: str = None):
         # Set proxy in env so the official library picks it up
         if proxy:
-            os.environ["THREADS_PROXY"] = proxy
+            os.environ["THREADS_PROXY"] = _convert_proxy(proxy)
         
         # Build auth from cookies dict
         self.auth = ThreadsAuth.from_cookies(cookies, user_agent=USER_AGENT)

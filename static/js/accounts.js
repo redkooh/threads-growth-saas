@@ -548,7 +548,7 @@ function saveAccount() {
   if (!threadsUser || !threadsPass) { errEl.textContent = 'Enter your Threads login'; errEl.style.display='block'; return; }
   btn.textContent='Logging in...'; btn.disabled=true;
   let cookies = [];
-  api('/api/threads/login', { method:'POST', body:JSON.stringify({username:threadsUser, password:threadsPass}) })
+  api('/api/threads/login', { method:'POST', body:JSON.stringify({username:threadsUser, password:threadsPass, country}) })
     .then(result => {
       if (result.ok && result.cookies) cookies = Object.entries(result.cookies).map(([n,v])=>({name:n,value:v}));
       else throw new Error(result.error||'Login failed');

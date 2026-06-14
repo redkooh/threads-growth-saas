@@ -513,16 +513,26 @@ async def api_threads_login(request: Request, user: User = Depends(get_current_u
     """Login to a Threads account using email/password.
     
     Returns cookies that the frontend can pass to /api/accounts.
+    Optionally proxies the login request through the selected country.
     """
     body = await request.json()
     username = body.get("username", "").strip()
     password = body.get("password", "")
+    country = body.get("country", "")
     
     if not username or not password:
         return JSONResponse({"error": "Username and password required"}, 400)
     
+    # Build proxy string if country provided
+    proxy = None
+    if country and country in PROXY_BY_COUNTRY:
+        proxy = PROXY_BY_COUNTRY[country]
+    elif country:
+        # Country not in the short list but selected in frontend — build from template
+        proxy = f"{PROXY_HOST}:{PROXY_PORT}:{PROXY_USER}:{PROXY_PASS}_country-{country}"
+    
     try:
-        cookies = login_threads(username, password)
+        cookies = login_threads(username, password, proxy=proxy)
         return {
             "ok": True,
             "cookies": cookies,
