@@ -136,12 +136,12 @@ class ThreadsAuthWrapper:
     """
     
     def __init__(self, cookies: dict, proxy: str = None):
-        # Set proxy in env so the official library picks it up
-        if proxy:
-            os.environ["THREADS_PROXY"] = _convert_proxy(proxy)
-        
         # Build auth from cookies dict
         self.auth = ThreadsAuth.from_cookies(cookies, user_agent=USER_AGENT)
+        # Store proxy on the auth object so every request uses the right one
+        self.proxy_url = _convert_proxy(proxy) if proxy else None
+        if self.proxy_url:
+            self.auth._proxy_url = self.proxy_url
         
         # Step 1: Lightweight token refresh — grace on failure
         refresh_ok = True
