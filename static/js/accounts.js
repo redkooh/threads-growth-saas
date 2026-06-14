@@ -99,11 +99,19 @@ async function selectAccount(id) {
 
 async function toggleAccount(id) {
   try {
-    await api(`/api/accounts/${id}/toggle`, { method: 'POST' });
-    toast('success', 'Account toggled');
+    const result = await api(`/api/accounts/${id}/toggle`, { method: 'POST' });
+    toast('success', result.active ? 'Resumed' : 'Paused');
     App.accounts = await api('/api/accounts');
     selectAccount(id);
-  } catch (e) { toast('error', 'Failed'); }
+    // Auto-trigger Run Now when unpausing so it starts immediately
+    if (result.active) {
+      setTimeout(() => {
+        api(`/api/scheduler/run-now/${id}`, { method: 'POST' })
+          .then(r => toast('success', `▶️ Started posting (${r.slots_triggered} slot)`))
+          .catch(() => {});  // silent on failure — it'll still pick up next tick
+      }, 500);
+    }
+  } catch (e) { toast('error', 'Failed to toggle'); }
 }
 
 function switchDetailTab(btn, section) {
