@@ -200,6 +200,52 @@ class ThreadsAuthWrapper:
         except Exception:
             pass
     
+    def _call_with_proxy_fallback(self, fn_name: str, *args, **kwargs):
+        """Call a library method with up to 10 proxy retries, then fall back to no proxy."""
+        import time
+        from threads import ThreadsClient
+        max_attempts = 10
+        last_exc = None
+
+        for attempt in range(1, max_attempts + 1):
+            try:
+                fn = getattr(self.client, fn_name)
+                return fn(*args, **kwargs)
+            except Exception as e:
+                last_exc = e
+                if attempt < max_attempts:
+                    wait = min(0.5 * attempt, 5)
+                    logger.warning(f"{fn_name} attempt {attempt}/{max_attempts} via proxy failed ({e}) — retrying in {wait:.1f}s")
+                    time.sleep(wait)
+                else:
+                    logger.warning(f"{fn_name} failed {max_attempts}x with proxy — trying without proxy")
+
+        # Fallback: rebuild client WITHOUT proxy, retry once
+        try:
+            self.auth._proxy_url = None
+            self.client.http._client.close()
+        except Exception:
+            pass
+        # Recreate the ThreadsClient (which rebuilds http from scratch)
+        self.client = ThreadsClient(
+            self.auth,
+            rate_limit_rps=1.0,
+            max_retries=3,
+            timeout=30.0,
+        )
+        try:
+            fn = getattr(self.client, fn_name)
+            result = fn(*args, **kwargs)
+            logger.warning(f"{fn_name} succeeded after falling back to no proxy")
+            # Restore proxy for subsequent calls
+            if self.proxy_url:
+                self.auth._proxy_url = self.proxy_url
+            return result
+        except Exception as e:
+            if self.proxy_url:
+                self.auth._proxy_url = self.proxy_url
+            raise last_exc or e
+    
     # ── Posting ──
     
     def post_thread(self, text: str, link: str = None) -> dict:
@@ -207,7 +253,8 @@ class ThreadsAuthWrapper:
         _rc_mod = importlib.import_module("threads.constants")
         ReplyControl = _rc_mod.ReplyControl
         try:
-            result = self.client.create_text_post(
+            result = self._call_with_proxy_fallback(
+                "create_text_post",
                 caption=text,
                 reply_control=ReplyControl.EVERYONE,
                 link_attachment_url=link,
@@ -223,7 +270,7 @@ class ThreadsAuthWrapper:
     def post_reply(self, parent_thread_code: str, text: str) -> dict:
         """Reply to an existing thread."""
         try:
-            result = self.client.reply(post_id=parent_thread_code, text=text)
+            result = self._call_with_proxy_fallback("reply", post_id=parent_thread_code, text=text)
             thread_code = getattr(result, "code", "")
             logger.info(f"Reply posted to {parent_thread_code[:20]}: {thread_code[:20]}")
             human_delay("reply")
@@ -236,7 +283,7 @@ class ThreadsAuthWrapper:
     def get_feed(self, count: int = 15) -> list:
         """Get the For You feed with humanized delay."""
         try:
-            feed_page = self.client.get_feed()
+            feed_page = self._call_with_proxy_fallback("get_feed")
             posts = list(feed_page.posts)[:count]
             logger.info(f"Feed: got {len(posts)} posts")
             human_delay("feed_read")
@@ -266,7 +313,7 @@ class ThreadsAuthWrapper:
             if not user_id:
                 logger.warning("No user_id available for profile fetch")
                 return []
-            profile_page = self.client.get_profile(user_id, first=count)
+            profile_page = self._call_with_proxy_fallback("get_profile", user_id, first=count)
             posts = list(profile_page.posts)[:count]
             logger.info(f"Profile: got {len(posts)} own posts")
             human_delay("feed_read")
@@ -315,7 +362,7 @@ class ThreadsAuthWrapper:
     def search_posts(self, query: str, count: int = 20) -> list:
         """Search Threads posts by keyword."""
         try:
-            results = self.client.search_posts(query)
+            results = self._call_with_proxy_fallback("search_posts", query)
             posts = []
             for p in results[:count]:
                 posts.append({
@@ -336,7 +383,7 @@ class ThreadsAuthWrapper:
     def get_post_stats(self, thread_code: str) -> dict:
         """Get like/reply counts for a thread we posted."""
         try:
-            post = self.client.get_post(thread_code)
+            post = self._call_with_proxy_fallback("get_post", thread_code)
             if post and post.post:
                 p = post.post
                 return {
