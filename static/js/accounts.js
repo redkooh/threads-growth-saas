@@ -56,7 +56,7 @@ async function selectAccount(id) {
                 <button onclick="openSetupWizard(${id})">⚡ Quick Setup</button>
                 <button onclick="runAccountNow(${id})">▶️ Run Now</button>
                 <button onclick="exportSingleCSV(${id})">📥 Export</button>
-                <button onclick="showDeleteAccount(${id})" style="color:#ef4444">🗑 Delete</button>
+                <button onclick="showDeleteAccount(${id})" style="color:#ef4444">🚪 Log out</button>
               </div>
             </div>
           </div>
@@ -591,7 +591,7 @@ async function confirmDeleteAccount() {
   if(!App.deleteTargetId) return;
   try {
     await api(`/api/accounts/${App.deleteTargetId}`, {method:'DELETE'});
-    toast('success','Deleted'); closeDeleteModal(); App.selectedAccountId=null;
+    toast('success','Logged out'); closeDeleteModal(); App.selectedAccountId=null;
     App.accounts = await api('/api/accounts'); renderAccountGrid();
     document.getElementById('detailPanel').innerHTML='<div class="empty">Select an account</div>';
   } catch(e) { document.getElementById('deleteError').textContent=e.message; document.getElementById('deleteError').style.display='block'; }

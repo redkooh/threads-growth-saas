@@ -632,6 +632,11 @@ async def api_delete_account(account_id: int, user: User = Depends(get_current_u
     account = db.query(Account).filter(Account.id == account_id, Account.user_id == user.id).first()
     if not account:
         raise HTTPException(404)
+    # Delete child records first to avoid FK violations
+    db.query(Schedule).filter(Schedule.account_id == account.id).delete()
+    db.query(Post).filter(Post.account_id == account.id).delete()
+    db.query(ActivityLog).filter(ActivityLog.account_id == account.id).delete()
+    db.query(UsernameLock).filter(UsernameLock.username == account.username).delete()
     db.delete(account)
     db.commit()
     return {"ok": True}
