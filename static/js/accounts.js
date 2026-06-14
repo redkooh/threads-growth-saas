@@ -71,8 +71,7 @@ async function selectAccount(id) {
             <div class="val ${detail.today_replies >= detail.target_replies ? 'green' : ''}">${detail.today_replies}/${detail.target_replies}</div>
             <div class="lbl">replies today</div>
           </div>
-          <div class="detail-metric small"><div class="val">${detail.total_posts}</div><div class="lbl">total</div></div>
-          <div class="detail-metric small"><div class="val">❤️ ${detail.total_likes}</div><div class="lbl">likes</div></div>
+
           <div class="detail-metric small"><div class="val">🕐 ${activeScheds}</div><div class="lbl">slots</div></div>
         </div>
 
@@ -608,8 +607,8 @@ async function refreshAccounts() {
 function updateLastUpdated() { document.getElementById('lastUpdated').innerHTML=`Updated: ${new Date().toLocaleTimeString()} <button onclick="refreshAll()">↻</button>`; }
 
 async function runAccountNow(id) {
-  const btn = event.target; btn.textContent='⏳'; btn.disabled=true;
-  try { const r=await api(`/api/scheduler/run-now/${id}`,{method:'POST'}); toast('success',`Ran ${r.slots_triggered} slot(s)`); setTimeout(()=>refreshAccounts(),3000); }
+  const btn = event.target; btn.textContent='⏳ Running…'; btn.disabled=true;
+  try { const r=await api(`/api/scheduler/run-now/${id}`,{method:'POST'}); toast('success',r.warning?`⚠️ ${r.warning}`:`✅ Ran ${r.slots_triggered} slot(s)`); setTimeout(()=>refreshAccounts(),3000); }
   catch(e) { toast('error',e.message); }
   btn.textContent='▶️'; btn.disabled=false;
 }

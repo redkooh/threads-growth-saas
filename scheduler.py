@@ -353,7 +353,7 @@ async def run_account_now(account_id: int):
         db.close()
 
         # Run the posting logic directly (same as a normal slot)
-        err = await _run_slot(account_id, sched.slot_name, sched.post_type)
+        err = await _run_slot(account_id, sched.slot_name, sched.post_type, manual=True)
         if err:
             return {"ok": True, "slots_triggered": 1, "results": results, "warning": err}
 
@@ -364,7 +364,7 @@ async def run_account_now(account_id: int):
         return {"error": str(e)}
 
 
-async def _run_slot(account_id: int, slot_name: str, post_type: str = "thread") -> str | None:
+async def _run_slot(account_id: int, slot_name: str, post_type: str = "thread", manual: bool = False) -> str | None:
     """Execute a single slot for a given account. Used by the scheduler and manual trigger."""
     db = SessionLocal()
     try:
@@ -378,22 +378,24 @@ async def _run_slot(account_id: int, slot_name: str, post_type: str = "thread") 
         plan_cfg = PLANS.get(user.plan, PLANS["starter"])
         hour = _utc_hour()
 
-        # Sleep hours check
-        sleep_start = account.sleep_hours_start or 0
-        sleep_end = account.sleep_hours_end or 0
-        if sleep_start != sleep_end and (
-            (sleep_start < sleep_end and sleep_start <= hour <= sleep_end) or
-            (sleep_start > sleep_end and (hour >= sleep_start or hour <= sleep_end))
-        ):
-            act.info("schedule_skip", f"Run-now skipped: sleep hours ({sleep_start}-{sleep_end} UTC)")
-            return None  # Not an error, just skipped
+        # Sleep hours check — skip for manual triggers
+        if not manual:
+            sleep_start = account.sleep_hours_start or 0
+            sleep_end = account.sleep_hours_end or 0
+            if sleep_start != sleep_end and (
+                (sleep_start < sleep_end and sleep_start <= hour <= sleep_end) or
+                (sleep_start > sleep_end and (hour >= sleep_start or hour <= sleep_end))
+            ):
+                act.info("schedule_skip", f"Run-now skipped: sleep hours ({sleep_start}-{sleep_end} UTC)")
+                return None  # Not an error, just skipped
 
-        # Daily limit check
-        daily_limit = get_daily_limit(user.plan)
-        today_used = account.today_threads + account.today_replies
-        if today_used >= daily_limit:
-            act.info("schedule_skip", f"Run-now skipped: daily limit ({today_used}/{daily_limit})")
-            return None
+        # Daily limit check — skip for manual triggers
+        if not manual:
+            daily_limit = get_daily_limit(user.plan)
+            today_used = account.today_threads + account.today_replies
+            if today_used >= daily_limit:
+                act.info("schedule_skip", f"Run-now skipped: daily limit ({today_used}/{daily_limit})")
+                return None
 
         cookies = json.loads(account.cookies_encrypted or "{}")
         if not cookies:

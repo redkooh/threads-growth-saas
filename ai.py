@@ -82,7 +82,7 @@ POST BY @{target_username} ({likes} likes, {replies} replies):
 Your reply tone: {tone}
 Your reply length: {length}
 Keywords to weave in naturally: {keywords}
-Target's reply count: {replies} ({"high engagement post — add value" if isinstance(replies, int) and replies > 10 else "conversation starter — be friendly"})
+Target's reply count: {replies} ({engagement_note})
 
 When tone or length is 'auto', choose what fits the post best — match the post's vibe, don't force a formula. Mix it up naturally across replies.
 
@@ -329,6 +329,7 @@ def generate_reply(
     target_username = target_post.get("username", "unknown")
     likes = target_post.get("like_count", 0)
     replies = target_post.get("reply_count", 0)
+    engagement_note = "high engagement post — add value" if isinstance(replies, int) and replies > 10 else "conversation starter — be friendly"
 
     reply_len = account.reply_length or "auto"
     max_tokens = 384 if reply_len == "auto" else (256 if reply_len == "short" else 384)
@@ -338,6 +339,7 @@ def generate_reply(
         target_username=target_username,
         likes=likes,
         replies=replies,
+        engagement_note=engagement_note,
         tone=account.reply_tone or "auto",
         length=reply_len,
         keywords=keywords,
