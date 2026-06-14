@@ -64,14 +64,14 @@ class Account(Base):
     active = Column(Boolean, default=True)
 
     # ── Target Settings ──
-    target_threads = Column(Integer, default=6)
-    target_replies = Column(Integer, default=10)
+    target_threads = Column(Integer, default=10)
+    target_replies = Column(Integer, default=50)
     target_follows = Column(Integer, default=5)
     target_dms = Column(Integer, default=2)
 
     # ── Daily Limits (caps) ──
-    max_threads = Column(Integer, default=8)
-    max_replies = Column(Integer, default=15)
+    max_threads = Column(Integer, default=10)
+    max_replies = Column(Integer, default=50)
     max_follows = Column(Integer, default=10)
     max_dms = Column(Integer, default=5)
     sleep_hours_start = Column(Integer, default=2)

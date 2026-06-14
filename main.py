@@ -1129,10 +1129,10 @@ async def api_account_risk(account_id: int, user: User = Depends(get_current_use
     risk = 0
     reasons = []
     # Fresh accounts with high targets
-    if account.target_threads > 5:
+    if account.target_threads > 10:
         risk += 15
         reasons.append(f"High thread target ({account.target_threads}/day)")
-    if account.target_replies > 20:
+    if account.target_replies > 50:
         risk += 15
         reasons.append(f"High reply target ({account.target_replies}/day)")
     # Fast posting

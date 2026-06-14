@@ -245,8 +245,8 @@ function renderSchedulesTab(scheds) {
 function renderGoalsTab(detail) {
   return `<div class="detail-section" id="dt-targets">
     <div class="section-hdr"><span>Daily posting goals</span></div>
-    <div class="form-group"><label>🧵 Threads per day</label>${sliderHtml('target_threads', detail.target_threads, 0, 20)}<div class="desc">${detail.today_threads} posted today</div></div>
-    <div class="form-group"><label>💬 Replies per day</label>${sliderHtml('target_replies', detail.target_replies, 0, 30)}<div class="desc">${detail.today_replies} replied today</div></div>
+    <div class="form-group"><label>🧵 Threads per day</label>${sliderHtml('target_threads', detail.target_threads, 0, 10)}<div class="desc">${detail.today_threads} posted today</div></div>
+    <div class="form-group"><label>💬 Replies per day</label>${sliderHtml('target_replies', detail.target_replies, 0, 50)}<div class="desc">${detail.today_replies} replied today</div></div>
     <button class="btn btn-primary btn-sm" onclick="saveAccountSettings(${detail.id})">💾 Save Goals</button>
   </div>`;
 }

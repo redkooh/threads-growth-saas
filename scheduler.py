@@ -198,8 +198,8 @@ async def run_scheduler():
                 # ── Step 3: Reply cycle ──
                 reply_budget = min(
                     SLOT_REPLY_BUDGET,
-                    max(0, (account.target_replies or 10) - account.today_replies),
-                    max(0, (account.max_replies or 15) - account.today_replies),
+                    max(0, (account.target_replies or 50) - account.today_replies),
+                    max(0, (account.max_replies or 50) - account.today_replies),
                 )
 
                 if reply_budget > 0 and plan_cfg.get("feature_replies", True):
@@ -232,9 +232,9 @@ async def run_scheduler():
 
                     replies_posted = 0
                     for target in reply_targets:
-                        if account.today_replies >= (account.max_replies or 15):
+                        if account.today_replies >= (account.max_replies or 50):
                             break
-                        if account.today_replies >= (account.target_replies or 10):
+                        if account.today_replies >= (account.target_replies or 50):
                             break
 
                         try:
@@ -443,8 +443,8 @@ async def _run_slot(account_id: int, slot_name: str, post_type: str = "thread") 
         # Reply cycle
         reply_budget = min(
             10,  # SLOT_REPLY_BUDGET
-            max(0, (account.target_replies or 10) - account.today_replies),
-            max(0, (account.max_replies or 15) - account.today_replies),
+            max(0, (account.target_replies or 50) - account.today_replies),
+            max(0, (account.max_replies or 50) - account.today_replies),
         )
 
         if reply_budget > 0 and plan_cfg.get("feature_replies", True):
@@ -469,9 +469,9 @@ async def _run_slot(account_id: int, slot_name: str, post_type: str = "thread") 
             reply_targets = reply_targets[:reply_budget]
             replies_posted = 0
             for target in reply_targets:
-                if account.today_replies >= (account.max_replies or 15):
+                if account.today_replies >= (account.max_replies or 50):
                     break
-                if account.today_replies >= (account.target_replies or 10):
+                if account.today_replies >= (account.target_replies or 50):
                     break
                 try:
                     reply_text = generate_reply(account, target, feed_posts=feed_posts)
