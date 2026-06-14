@@ -242,7 +242,7 @@ async def run_scheduler():
                             if not reply_text:
                                 continue
 
-                            auth.post_reply(target["thread_code"], reply_text)
+                            auth.post_reply(target["pk"], reply_text)
 
                             db.add(Post(
                                 account_id=account.id,
@@ -479,7 +479,7 @@ async def _run_slot(account_id: int, slot_name: str, post_type: str = "thread", 
                     reply_text = generate_reply(account, target, feed_posts=feed_posts)
                     if not reply_text:
                         continue
-                    auth.post_reply(target["thread_code"], reply_text)
+                    auth.post_reply(target["pk"], reply_text)
                     db.add(Post(
                         account_id=account.id,
                         thread_code=target["thread_code"],
